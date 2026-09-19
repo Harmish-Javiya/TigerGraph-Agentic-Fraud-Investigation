@@ -1,0 +1,75 @@
+{
+  "case": {
+    "case_id": "HHG-011",
+    "customer_id": "C11923",
+    "card_id": "C11923-K2",
+    "opened_at": "2016-12-29 06:27:44",
+    "flagged_txn_id": "3583368",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C11923 message: 'I never made this $131.30 purchase. Please check my card.' Refers to 3583368.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.68,
+    "pattern": "account_takeover",
+    "exposure_usd": 131.3,
+    "evidence": [
+      {
+        "signal": "Customer claim",
+        "value": "Did not make the $131.30 purchase",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Transaction amount",
+        "value": "$131.30 (3.3x avg)",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Risk score",
+        "value": "0.39",
+        "weight": "low",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Usual channel",
+        "value": "online (matches)",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Region activity",
+        "value": "0 transactions in same region last 7 days",
+        "weight": "medium",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The customer reports the transaction as unauthorized. Amount is significantly above their average but within their historical max. Risk score is moderate, and there is no recent activity in the billing region, suggesting possible account takeover."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you initiated a $131.30 online purchase recently, and if not, provide any recent account changes or suspicious activity you may have noticed?",
+      "simulated_response": "I did not make this purchase. It looks suspicious to me. I haven't been in the billing region recently either."
+    }
+  ]
+}

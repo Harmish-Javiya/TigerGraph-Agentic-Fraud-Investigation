@@ -1,0 +1,63 @@
+{
+  "case": {
+    "case_id": "HHG-003",
+    "customer_id": "C08623",
+    "card_id": "C08623-K2",
+    "opened_at": "2016-12-10 15:01:21",
+    "flagged_txn_id": "3530164",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C08623 message: 'I never made this $49.00 purchase. Please check my card.' Refers to 3530164.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.7,
+    "pattern": "out_of_region_use",
+    "exposure_usd": 49.0,
+    "evidence": [
+      {
+        "signal": "Unusual Region",
+        "value": "330",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Customer Denial",
+        "value": "true",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Transaction Amount",
+        "value": "$49",
+        "weight": "low",
+        "supports": "neutral"
+      }
+    ],
+    "analyst_notes": "The transaction was made in-person, a normal channel, but in a region not seen in the customer's baseline and the customer explicitly denies making it. Amount is lower than average, providing mixed signals."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a $49 in-person purchase in region 330?",
+      "simulated_response": "I did not make that purchase, it looks fraudulent to me."
+    }
+  ]
+}

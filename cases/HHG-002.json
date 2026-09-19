@@ -1,0 +1,66 @@
+{
+  "case": {
+    "case_id": "HHG-002",
+    "customer_id": "C11891",
+    "card_id": "C11891-K1",
+    "opened_at": "2016-11-22 23:27:07",
+    "flagged_txn_id": "3478782",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3478782 ($292.36, online) at 0.79. Review and decide.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.5,
+    "pattern": "undocumented",
+    "exposure_usd": 292.36,
+    "evidence": [
+      {
+        "signal": "Transaction Amount",
+        "value": "$292.36",
+        "weight": "medium",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Risk Score",
+        "value": "0.79",
+        "weight": "medium",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Transaction Channel",
+        "value": "online",
+        "weight": "low",
+        "supports": "legitimate"
+      }
+    ],
+    "analyst_notes": "The transaction matches the customer's historical maximum amount and occurs on a familiar online channel, but the moderate risk score and missing billing region raise some concern."
+  },
+  "sar": {
+    "file": true,
+    "subject_name": "C11891",
+    "subject_id": "C11891",
+    "amount": 292.36,
+    "activity_type": "undocumented",
+    "narrative": "**Suspicious Activity Report (SAR) Narrative – Case HHG‑002**\n\nOn [date], Customer C11891 conducted a $292.36 transaction through a familiar online channel. The amount equals the customer’s historical maximum, which by itself is not atypical. However, the transaction received a moderate risk score and the billing region field was blank, creating a discrepancy between expected and reported data. The combination of a maximum‑level amount, missing billing region, and elevated risk rating suggests a potential attempt to exploit the customer’s established spending pattern. Further investigation is warranted to verify the legitimacy of the funds, confirm the true billing location, and assess whether the transaction is part of an undocumented fraud pattern. This activity is being reported as suspicious due to the incongruent risk indicators despite the otherwise familiar channel and amount."
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CREATE_CASE",
+      "FILE_REPORT",
+      "ESCALATE_TO_ANALYST"
+    ],
+    "rules_applied": [
+      "R1",
+      "R9"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm that you authorized this $292.36 online purchase?",
+      "simulated_response": "No, I did not authorize that $292.36 online purchase."
+    }
+  ]
+}

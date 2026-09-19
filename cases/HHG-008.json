@@ -1,0 +1,75 @@
+{
+  "case": {
+    "case_id": "HHG-008",
+    "customer_id": "C13171",
+    "card_id": "C13171-K2",
+    "opened_at": "2016-12-20 03:08:56",
+    "flagged_txn_id": "3558054",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C13171 message: 'I never made this $55.68 purchase. Please check my card.' Refers to 3558054.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.6,
+    "pattern": "card_not_present_fraud",
+    "exposure_usd": 55.68,
+    "evidence": [
+      {
+        "signal": "customer_dispute",
+        "value": "yes",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "amount_vs_average",
+        "value": "$55.68 vs $54.27 avg",
+        "weight": "low",
+        "supports": "neutral"
+      },
+      {
+        "signal": "channel_usual",
+        "value": "online",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "recent_online_activity",
+        "value": "5 online txns in 72h",
+        "weight": "medium",
+        "supports": "neutral"
+      },
+      {
+        "signal": "region_mismatch",
+        "value": "billing region 0, no recent activity",
+        "weight": "medium",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "Customer reports the $55.68 online purchase as unauthorized. Amount and channel align with typical behavior, but the dispute and lack of recent activity in the billing region raise concern. Insufficient evidence to label definitively, so verdict is uncertain."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made an online purchase of $55.68 on or around 2016-12-20, and if not, provide any recent activity details?",
+      "simulated_response": "I did not make this purchase. It was unauthorized."
+    }
+  ]
+}

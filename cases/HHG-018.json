@@ -1,0 +1,84 @@
+{
+  "case": {
+    "case_id": "HHG-018",
+    "customer_id": "C02354",
+    "card_id": "C02354-K2",
+    "opened_at": "2016-11-27 14:41:26",
+    "flagged_txn_id": "3491361",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361.",
+    "verdict": "fraud",
+    "fraud_probability": 0.75,
+    "pattern": "out_of_region_use",
+    "exposure_usd": 39.08,
+    "evidence": [
+      {
+        "signal": "transaction_amount_relative_to_average",
+        "value": "39.08 vs avg 141.15 (27.7%)",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "billing_region_mismatch",
+        "value": "region 126 not in customer's usual regions",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "dormant_account",
+        "value": "333 days since last transaction",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "customer_claim",
+        "value": "customer reports never made the purchase",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "match_flags",
+        "value": "M1=T M2=T M3=T M5=F",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "email_match",
+        "value": "none",
+        "weight": "low",
+        "supports": "neutral"
+      }
+    ],
+    "analyst_notes": "The transaction occurs in a region never seen for this card and follows a long dormant period. The customer explicitly denies the purchase, and multiple match flags raise suspicion. Combined with a moderate risk score, the evidence leans toward fraud."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CREATE_CASE",
+      "BLOCK_CARD",
+      "REIMBURSE_CUSTOMER"
+    ],
+    "rules_applied": [
+      "R1",
+      "R2"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a $39.08 in‑person purchase on 2016‑11‑24, and if so, provide the merchant name and location?",
+      "simulated_response": "I did not make this purchase. It looks like fraud."
+    }
+  ]
+}

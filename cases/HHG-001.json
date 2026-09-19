@@ -1,0 +1,75 @@
+{
+  "case": {
+    "case_id": "HHG-001",
+    "customer_id": "C12382",
+    "card_id": "C12382-K1",
+    "opened_at": "2016-12-05 01:55:28",
+    "flagged_txn_id": "3514030",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3514030 ($77.07, in billing region 444.0) at 0.61. Review and decide.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.45,
+    "pattern": "out_of_region_use",
+    "exposure_usd": 77.07,
+    "evidence": [
+      {
+        "signal": "billing_region",
+        "value": "444",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "transaction_amount",
+        "value": "$77.07",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "transaction_channel",
+        "value": "in_person",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "match_flags",
+        "value": "M1=T M2=T M3=T",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "region_activity_last_7d",
+        "value": "0 transactions",
+        "weight": "medium",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The transaction occurs in a billing region not seen in the customer's history and triggers multiple high‑weight match flags, raising suspicion. However, the amount and in‑person channel align with typical behavior, leading to an uncertain verdict."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a purchase in region 444 on or around 2016-12-04?",
+      "simulated_response": "I don't recognize that transaction. I didn't make a purchase in region 444 on or around 2016-12-04."
+    }
+  ]
+}

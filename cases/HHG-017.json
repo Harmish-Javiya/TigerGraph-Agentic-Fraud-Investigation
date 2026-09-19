@@ -1,0 +1,65 @@
+{
+  "case": {
+    "case_id": "HHG-017",
+    "customer_id": "C04570",
+    "card_id": "C04570-K1",
+    "opened_at": "2016-11-12 00:46:24",
+    "flagged_txn_id": "3450629",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3450629 ($100.09, online) at 0.57. Review and decide.",
+    "verdict": "fraud",
+    "fraud_probability": 0.8,
+    "pattern": "card_testing",
+    "exposure_usd": 100.09,
+    "evidence": [
+      {
+        "signal": "Multiple transactions in a short time window",
+        "value": "3 online transactions within 72 hours",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Transaction amounts",
+        "value": "$100.09, $99.96, $100.09",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Deviation from customer's baseline",
+        "value": "Average historic amount $342.87; recent avg $100.05; same region but unusual frequency",
+        "weight": "medium",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The three near-identical online purchases within a short period deviate sharply from the customer's typical higher-value spending pattern, indicating possible card‑testing activity. No recent regional activity and the risk score of 0.57 further support fraud suspicion."
+  },
+  "sar": {
+    "file": true,
+    "subject_name": "C04570",
+    "subject_id": "C04570",
+    "amount": 100.09,
+    "activity_type": "card_testing",
+    "narrative": "**Suspicious Activity Report Narrative (FinCEN‑style)**  \n\nCase HHG‑017 involves customer C04570. Within a short time frame the account generated three near‑identical online purchases totaling $100.09. This pattern sharply deviates from the customer’s historical behavior, which consists of higher‑value transactions. The rapid, low‑value, repetitive purchases are characteristic of card‑testing activity used to validate stolen card data. No recent regional activity has been observed for this customer, and the automated risk‑scoring model assigned a score of 0.57, further indicating elevated fraud risk. Accordingly, the institution deems these transactions suspicious and files this SAR in compliance with the Bank Secrecy Act and FinCEN regulations."
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CREATE_CASE",
+      "BLOCK_CARD",
+      "MONITOR_CONNECTED_CARDS",
+      "FILE_REPORT",
+      "STEP_UP_AUTH",
+      "DECLINE"
+    ],
+    "rules_applied": [
+      "R1",
+      "R2",
+      "R6",
+      "R5"
+    ]
+  },
+  "evidence_requests": []
+}

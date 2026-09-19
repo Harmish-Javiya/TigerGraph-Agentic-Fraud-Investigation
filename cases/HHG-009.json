@@ -1,0 +1,81 @@
+{
+  "case": {
+    "case_id": "HHG-009",
+    "customer_id": "C08299",
+    "card_id": "C08299-K1",
+    "opened_at": "2016-12-28 17:10:53",
+    "flagged_txn_id": "3581141",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C08299 message: 'I never made this $30.02 purchase. Please check my card.' Refers to 3581141.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.6,
+    "pattern": "card_not_present_fraud",
+    "exposure_usd": 30.02,
+    "evidence": [
+      {
+        "signal": "Customer dispute",
+        "value": "Customer reports transaction as unauthorized",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Risk score",
+        "value": "0.28 (low)",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Transaction channel",
+        "value": "online (card-not-present)",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Amount vs baseline",
+        "value": "$30.02 vs avg $61.17",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Region consistency",
+        "value": "Billing region 203 is within usual regions",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Match flags",
+        "value": "None set",
+        "weight": "low",
+        "supports": "legitimate"
+      }
+    ],
+    "analyst_notes": "The customer disputes a low-value online purchase that aligns with their typical region and channel, but the dispute itself is a strong fraud indicator. Risk score is low and amount is below average, creating mixed signals."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a $30.02 online purchase on December 28, and if not, provide any details about recent activity on your card?",
+      "simulated_response": "I did not make this purchase. It looks like a fraudulent transaction."
+    }
+  ]
+}

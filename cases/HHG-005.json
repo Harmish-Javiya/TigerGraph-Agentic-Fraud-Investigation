@@ -1,0 +1,70 @@
+{
+  "case": {
+    "case_id": "HHG-005",
+    "customer_id": "C02923",
+    "card_id": "C02923-K1",
+    "opened_at": "2016-12-08 03:38:37",
+    "flagged_txn_id": "3523199",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3523199 ($100.07, online) at 0.54. Review and decide.",
+    "verdict": "legitimate",
+    "fraud_probability": 0.2,
+    "pattern": "none",
+    "exposure_usd": 100.07,
+    "evidence": [
+      {
+        "signal": "Risk Score",
+        "value": "0.54",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Transaction Amount",
+        "value": "$100.07",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Transaction Channel",
+        "value": "online",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Billing Region",
+        "value": "330",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "Days since last txn",
+        "value": "0",
+        "weight": "low",
+        "supports": "neutral"
+      }
+    ],
+    "analyst_notes": "The transaction aligns with the customer's typical spending patterns, channel, and region; risk score is low, indicating low fraud likelihood."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CLOSE_NO_FRAUD"
+    ],
+    "rules_applied": [
+      "R1",
+      "R3"
+    ]
+  },
+  "evidence_requests": []
+}

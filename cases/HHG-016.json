@@ -1,0 +1,75 @@
+{
+  "case": {
+    "case_id": "HHG-016",
+    "customer_id": "C09988",
+    "card_id": "C09988-K1",
+    "opened_at": "2016-12-12 01:39:08",
+    "flagged_txn_id": "3534820",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.6,
+    "pattern": "card_not_present_fraud",
+    "exposure_usd": 59.67,
+    "evidence": [
+      {
+        "signal": "Transaction amount",
+        "value": "$59.67",
+        "weight": "low",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Transaction channel",
+        "value": "online",
+        "weight": "low",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Billing region",
+        "value": "0",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Recent similar transaction",
+        "value": "yes",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Customer claim",
+        "value": "unauthorized",
+        "weight": "high",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The transaction matches the customer's typical online channel but originates from an undefined billing region and has no recent regional activity, raising suspicion. The customer explicitly denies the purchase, and a recent identical transaction suggests possible account compromise."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a $59.67 online purchase on 2016-12-11, and if not, have you noticed any other unauthorized activity on your account?",
+      "simulated_response": "I did not make that purchase. It looks like someone has accessed my account."
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "case": {
+    "case_id": "HHG-004",
+    "customer_id": "C08106",
+    "card_id": "C08106-K1",
+    "opened_at": "2016-12-29 07:53:54",
+    "flagged_txn_id": "3583227",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C08106 message: 'I never made this $128.33 purchase. Please check my card.' Refers to 3583227.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.73,
+    "pattern": "card_not_present_fraud",
+    "exposure_usd": 128.33,
+    "evidence": [
+      {
+        "signal": "Transaction amount",
+        "value": "$128.33",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Customer denial",
+        "value": "true",
+        "weight": "high",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Billing region mismatch",
+        "value": "0 (outside usual regions)",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Risk score",
+        "value": "0.34",
+        "weight": "low",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Amount vs. average",
+        "value": "3.6× average",
+        "weight": "medium",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The customer reports the $128.33 online purchase as unauthorized. The amount is near the customer's historical maximum and far above the average, and the billing region does not match any of the customer's usual regions, raising suspicion of card‑not‑present fraud."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made a $128.33 online purchase on December 29, 2016, and if not, provide any recent changes to your account or device that might explain this activity?",
+      "simulated_response": "I did not make this purchase. It looks suspicious to me."
+    }
+  ]
+}

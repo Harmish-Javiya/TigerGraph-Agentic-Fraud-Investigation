@@ -1,0 +1,70 @@
+{
+  "case": {
+    "case_id": "HHG-020",
+    "customer_id": "C12265",
+    "card_id": "C12265-K2",
+    "opened_at": "2016-12-03 12:04:26",
+    "flagged_txn_id": "3509359",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3509359 ($125.08, online) at 0.52. Review and decide.",
+    "verdict": "legitimate",
+    "fraud_probability": 0.3,
+    "pattern": "none",
+    "exposure_usd": 125.08,
+    "evidence": [
+      {
+        "signal": "transaction_amount",
+        "value": "$125.08",
+        "weight": "medium",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "transaction_channel",
+        "value": "online",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "billing_region",
+        "value": "264",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "risk_score",
+        "value": "0.52",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "recent_activity",
+        "value": "multiple recent transactions in same window",
+        "weight": "medium",
+        "supports": "legitimate"
+      }
+    ],
+    "analyst_notes": "The transaction amount and channel align with the customer's historical behavior, and the billing region matches the usual region. The moderate risk score does not outweigh the consistency with baseline patterns."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CLOSE_NO_FRAUD"
+    ],
+    "rules_applied": [
+      "R1",
+      "R3"
+    ]
+  },
+  "evidence_requests": []
+}

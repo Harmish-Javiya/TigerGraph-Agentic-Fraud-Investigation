@@ -1,0 +1,63 @@
+{
+  "case": {
+    "case_id": "HHG-007",
+    "customer_id": "C09933",
+    "card_id": "C09933-K2",
+    "opened_at": "2016-12-05 03:46:14",
+    "flagged_txn_id": "3514948",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3514948 ($111.92, in billing region 264.0) at 0.87. Review and decide.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.6,
+    "pattern": "out_of_region_use",
+    "exposure_usd": 111.92,
+    "evidence": [
+      {
+        "signal": "unusual_region",
+        "value": "264.0",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "transaction_amount",
+        "value": "$111.92",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "transaction_channel",
+        "value": "in_person",
+        "weight": "low",
+        "supports": "legitimate"
+      }
+    ],
+    "analyst_notes": "The transaction occurs in a region not seen in the customer's historical pattern, but the amount and channel match typical behavior, resulting in moderate uncertainty."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm if you made a purchase in region 264.0 on the date of this transaction?",
+      "simulated_response": "I did not make that purchase."
+    }
+  ]
+}

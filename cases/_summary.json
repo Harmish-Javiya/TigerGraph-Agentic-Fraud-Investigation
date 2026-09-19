@@ -1,0 +1,29 @@
+{
+  "success": [
+    "HHG-001",
+    "HHG-002",
+    "HHG-004",
+    "HHG-005",
+    "HHG-006",
+    "HHG-007",
+    "HHG-008",
+    "HHG-009",
+    "HHG-010",
+    "HHG-011",
+    "HHG-012",
+    "HHG-013",
+    "HHG-014",
+    "HHG-015",
+    "HHG-016",
+    "HHG-017",
+    "HHG-018",
+    "HHG-019",
+    "HHG-020"
+  ],
+  "failed": [
+    {
+      "case_id": "HHG-003",
+      "error": "Error code: 413 - {'error': {'message': 'Request Entity Too Large', 'type': 'invalid_request_error', 'code': 'request_too_large'}}"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "case": {
+    "case_id": "HHG-014",
+    "customer_id": "C13487",
+    "card_id": "C13487-K1",
+    "opened_at": "2016-11-22 20:11:00",
+    "flagged_txn_id": "3478561",
+    "trigger_type": "analyst_request",
+    "trigger_text": "Analyst request: several cards this month show purchases from the same unusual device profile. Review transaction 3478561 on card C13487-K1 and look for related activity.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.2,
+    "pattern": "card_not_present_new_device",
+    "exposure_usd": 74.96,
+    "evidence": [
+      {
+        "signal": "unusual_device_profile",
+        "value": "multiple cards using same device",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "transaction_amount",
+        "value": "$74.96",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "channel_usage",
+        "value": "online (usual channel)",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "region_match",
+        "value": "191 (usual region)",
+        "weight": "low",
+        "supports": "legitimate"
+      }
+    ],
+    "analyst_notes": "The transaction amount and channel align with the customer's typical behavior, but the trigger of multiple cards using the same unusual device profile raises suspicion of a potential new device fraud scenario."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "CLOSE_NO_FRAUD"
+    ],
+    "rules_applied": [
+      "R1",
+      "R3"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you have recently used a new device or browser for online purchases on this card?",
+      "simulated_response": "No, I haven't used a new device or browser for online purchases on this card recently. This transaction looks normal to me."
+    }
+  ]
+}

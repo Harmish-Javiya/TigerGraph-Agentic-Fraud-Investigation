@@ -1,0 +1,69 @@
+{
+  "case": {
+    "case_id": "HHG-012",
+    "customer_id": "C05876",
+    "card_id": "C05876-K2",
+    "opened_at": "2016-12-18 05:00:31",
+    "flagged_txn_id": "3553342",
+    "trigger_type": "risk_score",
+    "trigger_text": "Real-time model scored transaction 3553342 ($30.91, in billing region 494.0) at 0.55. Review and decide.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.42,
+    "pattern": "out_of_region_use",
+    "exposure_usd": 30.91,
+    "evidence": [
+      {
+        "signal": "transaction_amount",
+        "value": "$30.91",
+        "weight": "medium",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "transaction_channel",
+        "value": "in_person",
+        "weight": "low",
+        "supports": "legitimate"
+      },
+      {
+        "signal": "billing_region",
+        "value": "494",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "risk_score",
+        "value": "0.55",
+        "weight": "medium",
+        "supports": "neutral"
+      }
+    ],
+    "analyst_notes": "The purchase is within a usual channel but occurs in a billing region never seen for this card, raising a moderate out-of-region risk. Amount is lower than average, which leans legitimate, resulting in an overall uncertain assessment."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you made an in‑person purchase of $30.91 at a location associated with billing region 494 on the reported date?",
+      "simulated_response": "I did not make this purchase"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "case": {
+    "case_id": "HHG-006",
+    "customer_id": "C07297",
+    "card_id": "C07297-K1",
+    "opened_at": "2016-11-22 02:30:00",
+    "flagged_txn_id": "3476682",
+    "trigger_type": "customer_report",
+    "trigger_text": "Customer C07297 message: 'I never made this $482.12 purchase. Please check my card.' Refers to 3476682.",
+    "verdict": "uncertain",
+    "fraud_probability": 0.6,
+    "pattern": "card_testing",
+    "exposure_usd": 482.12,
+    "evidence": [
+      {
+        "signal": "Transaction amount",
+        "value": "$482.12",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Number of transactions in 72h window",
+        "value": "9",
+        "weight": "medium",
+        "supports": "fraud"
+      },
+      {
+        "signal": "Channel of transaction",
+        "value": "online",
+        "weight": "low",
+        "supports": "neutral"
+      },
+      {
+        "signal": "Customer's reported fraud",
+        "value": "yes",
+        "weight": "high",
+        "supports": "fraud"
+      }
+    ],
+    "analyst_notes": "The $482.12 online purchase is well above the customer's average spend and follows a burst of similar‑sized online transactions, raising suspicion of card testing or account takeover. The customer has explicitly denied making the purchase, adding strong fraud indication."
+  },
+  "sar": {
+    "file": false,
+    "subject_name": null,
+    "subject_id": null,
+    "amount": null,
+    "activity_type": null,
+    "narrative": null
+  },
+  "next_best_actions": {
+    "initial": [
+      "CREATE_CASE",
+      "VERIFY_WITH_CUSTOMER"
+    ],
+    "final": [
+      "MONITOR_CARD"
+    ],
+    "rules_applied": [
+      "R1"
+    ]
+  },
+  "evidence_requests": [
+    {
+      "request_type": "CUSTOMER_CONTACT",
+      "question": "Can you confirm whether you authorized a $482.12 online purchase on the date of the transaction?",
+      "simulated_response": "I did not make that purchase. It looks like someone has accessed my account."
+    }
+  ]
+}
