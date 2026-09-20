@@ -1,5 +1,7 @@
 import os
 import requests
+import asyncio
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,23 +12,54 @@ TG_GRAPH = os.getenv("TG_GRAPH", "fraud_investigation")
 TG_USERNAME = os.getenv("TG_USERNAME", "tigergraph")
 TG_PASSWORD = os.getenv("TG_PASSWORD", "tigergraph")
 
-BASE_URL = f"http://{TG_HOST}:{TG_PORT}/query/{TG_GRAPH}"
+MCP_URL = "http://localhost:8000/mcp/"
+
+def _parse_mcp_payload(raw: str) -> list:
+    """
+    Extract the query results from an MCP text response.
+
+    The payload is a JSON object that may be wrapped in a markdown fence and
+    followed by extra prose, so we decode just the first JSON object we find
+    instead of assuming the whole string is JSON.
+    """
+    if not raw or not raw.strip():
+        return []
+
+    start = raw.find("{")
+    if start == -1:
+        return []
+
+    obj, _ = json.JSONDecoder().raw_decode(raw[start:])
+
+    if not obj.get("success", True):
+        raise RuntimeError(f"MCP error: {obj.get('error') or obj.get('message')}")
+
+    data = obj.get("data", {})
+    # TigerGraph MCP nests the query output under data.result
+    return data.get("result", data.get("results", []))
 
 
-def _get(query_name: str, params: dict) -> dict:
-    """Call a GSQL installed query via REST API."""
-    url = f"{BASE_URL}/{query_name}"
-    response = requests.get(
-        url,
-        params=params,
-        auth=(TG_USERNAME, TG_PASSWORD),
-        timeout=30
-    )
-    response.raise_for_status()
-    data = response.json()
-    if data.get("error"):
-        raise RuntimeError(f"TigerGraph error: {data.get('message')}")
-    return data.get("results", [])
+async def _get_async(query_name: str, params: dict) -> list:
+    from mcp.client.streamable_http import streamable_http_client
+    from mcp import ClientSession
+
+    async with streamable_http_client(MCP_URL, timeout=120) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "tigergraph__run_installed_query",
+                arguments={
+                    "graph_name": TG_GRAPH,
+                    "query_name": query_name,
+                    "params": params
+                }
+            )
+            raw = result.content[0].text if result.content else ""
+            return _parse_mcp_payload(raw)
+
+def _get(query_name: str, params: dict) -> list:
+    """Sync wrapper around the async MCP call."""
+    return asyncio.run(_get_async(query_name, params))
 
 
 def get_transaction(txn_id: str) -> dict:
@@ -40,15 +73,31 @@ def get_transaction(txn_id: str) -> dict:
     return {}
 
 
-def card_history(customer_id: str) -> list:
+def card_baseline(customer_id: str) -> dict:
     """
-    Fetch all transactions for a customer (baseline behavior).
-    Returns list of transaction dicts sorted by ts ASC.
+    Aggregated baseline for a customer, computed in GSQL.
+    Returns total_txns, avg_amount, max_amount, usual_channels, usual_regions.
     """
-    results = _get("card_history", {"customer_id": customer_id})
-    if results and results[0].get("Txns"):
-        return [t["attributes"] for t in results[0]["Txns"]]
-    return []
+    results = _get("card_baseline", {"customer_id": customer_id})
+
+    out = {}
+    for block in results:
+        out.update(block)
+
+    total = int(out.get("total_txns", 0) or 0)
+    sum_amt = float(out.get("sum_amount", 0) or 0)
+    regions = [
+        str(int(float(r))) for r in (out.get("regions") or []) if r
+    ]
+    channels = [c for c in (out.get("channels") or []) if c]
+
+    return {
+        "total_txns": total,
+        "avg_amount": round(sum_amt / total, 2) if total else 0,
+        "max_amount": round(float(out.get("max_amount", 0) or 0), 2),
+        "usual_channels": channels,
+        "usual_regions": regions[:10],
+    }
 
 
 def card_window(customer_id: str, center_ts: str, hours: int) -> list:
