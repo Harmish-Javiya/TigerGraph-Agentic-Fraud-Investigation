@@ -1,69 +1,94 @@
 {
+  "case_id": "HHG-012",
   "case": {
-    "case_id": "HHG-012",
-    "customer_id": "C05876",
-    "card_id": "C05876-K2",
-    "opened_at": "2016-12-18 05:00:31",
-    "flagged_txn_id": "3553342",
-    "trigger_type": "risk_score",
-    "trigger_text": "Real-time model scored transaction 3553342 ($30.91, in billing region 494.0) at 0.55. Review and decide.",
+    "status": "closed_legitimate",
     "verdict": "uncertain",
-    "fraud_probability": 0.42,
-    "pattern": "out_of_region_use",
+    "fraud_probability": 0.5,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3553342"
+    ],
+    "first_suspicious_txn_id": "3553342",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
     "exposure_usd": 30.91,
     "evidence": [
       {
-        "signal": "transaction_amount",
-        "value": "$30.91",
-        "weight": "medium",
-        "supports": "legitimate"
+        "claim": "The transaction amount of $30.91 is well below the customer's average transaction amount of $80.06 and far below the maximum of $2681.01.",
+        "source": "graph",
+        "ref": "query:customer_baseline(C05876)",
+        "entity_ids": [
+          "C05876"
+        ]
       },
       {
-        "signal": "transaction_channel",
-        "value": "in_person",
-        "weight": "low",
-        "supports": "legitimate"
+        "claim": "The transaction channel (in_person) and billing region (494) are both listed among the customer's usual channels and regions.",
+        "source": "graph",
+        "ref": "query:customer_history(C05876)",
+        "entity_ids": [
+          "C05876"
+        ]
       },
       {
-        "signal": "billing_region",
-        "value": "494",
-        "weight": "medium",
-        "supports": "fraud"
-      },
-      {
-        "signal": "risk_score",
-        "value": "0.55",
-        "weight": "medium",
-        "supports": "neutral"
+        "claim": "R1 applies: the model flagged a No Fraud Pattern, indicating insufficient evidence to label the transaction as fraudulent.",
+        "source": "document",
+        "ref": "R1",
+        "entity_ids": []
       }
     ],
-    "analyst_notes": "The purchase is within a usual channel but occurs in a billing region never seen for this card, raising a moderate out-of-region risk. Amount is lower than average, which leans legitimate, resulting in an overall uncertain assessment."
+    "similar_prior_cases": [
+      "CC-5537",
+      "CC-5525",
+      "CC-5504"
+    ],
+    "summary": "The $30.91 in‑person purchase in region 494 aligns with the cardholder's normal spending behavior, channels, and regions; the risk score of 0.55 is not high enough to override the lack of fraud indicators.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-012"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: investigation warranted, case opened"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.70, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: investigation warranted, case opened"
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: no customer reply within 24h"
+      },
+      {
+        "action": "DECLINE_TRANSACTION",
+        "route": "L1",
+        "reason": "R4/R5: high risk transaction pending or card testing"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $30.91 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you made an in‑person purchase of $30.91 at a location associated with billing region 494 on the reported date?",
-      "simulated_response": "I did not make this purchase"
-    }
-  ]
+  "stop_reason": "All available data points indicate the transaction is consistent with the customer's established pattern and the policy recommends closing as legitimate.",
+  "tool_calls": 8,
+  "tokens": 15412,
+  "latency_s": 49.0
 }

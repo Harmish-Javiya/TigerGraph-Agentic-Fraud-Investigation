@@ -1,63 +1,94 @@
 {
+  "case_id": "HHG-003",
   "case": {
-    "case_id": "HHG-003",
-    "customer_id": "C08623",
-    "card_id": "C08623-K2",
-    "opened_at": "2016-12-10 15:01:21",
-    "flagged_txn_id": "3530164",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C08623 message: 'I never made this $49.00 purchase. Please check my card.' Refers to 3530164.",
+    "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.7,
+    "fraud_probability": 0.3,
     "pattern": "out_of_region_use",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3530164"
+    ],
+    "first_suspicious_txn_id": "3530164",
+    "connected_card_ids": [
+      "C08623-K2",
+      "C08623"
+    ],
+    "connected_device_profiles": [],
     "exposure_usd": 49.0,
     "evidence": [
       {
-        "signal": "Unusual Region",
-        "value": "330",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction was made in a billing region (330) that is not among the customer's usual regions.",
+        "source": "document",
+        "ref": "query:customer_history",
+        "entity_ids": [
+          "C08623"
+        ]
       },
       {
-        "signal": "Customer Denial",
-        "value": "true",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "The customer explicitly reported the $49.00 purchase as unauthorized.",
+        "source": "customer",
+        "ref": "case:HHG-003",
+        "entity_ids": [
+          "C08623",
+          "3530164"
+        ]
       },
       {
-        "signal": "Transaction Amount",
-        "value": "$49",
-        "weight": "low",
-        "supports": "neutral"
+        "claim": "The $49.00 amount is well below the customer's average transaction amount of $129.36 across 1,140 historic transactions.",
+        "source": "graph",
+        "ref": "query:card_history(C08623-K2)",
+        "entity_ids": [
+          "C08623-K2"
+        ]
       }
     ],
-    "analyst_notes": "The transaction was made in-person, a normal channel, but in a region not seen in the customer's baseline and the customer explicitly denies making it. Amount is lower than average, providing mixed signals."
-  },
-  "sar": {
-    "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
-  },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
+    "similar_prior_cases": [
+      "CC-5558"
     ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
+    "summary": "Transaction 3530164 for $49.00 was flagged by the cardholder as suspicious. It occurred in-person in a region (330) the customer has never used before, deviating from their typical region set. The amount is lower than the customer's historical average, and no similar recent activity is observed, leaving the case uncertain pending further verification.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-003"
   },
   "evidence_requests": [
     {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you made a $49 in-person purchase in region 330?",
-      "simulated_response": "I did not make that purchase, it looks fraudulent to me."
+      "type": "customer_validation",
+      "asked_after_step": 50,
+      "assumed_response": "No, I did not make a $49.00 purchase on the date of transaction ID 3530164."
     }
-  ]
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: customer confirmed legitimate"
+      }
+    ],
+    "what_changed": "Customer response: 'No, I did not make a $49.00 purchase on the date of transaction ID 3530164.'. Added: CLOSE_NO_FRAUD. Removed: CREATE_CASE, VERIFY_WITH_CUSTOMER."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Exposure $49.00 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Investigation remains open pending the cardholder's response to confirm or deny the transaction.",
+  "tool_calls": 8,
+  "tokens": 21633,
+  "latency_s": 105.6
 }

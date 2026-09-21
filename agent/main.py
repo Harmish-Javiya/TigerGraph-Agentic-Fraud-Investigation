@@ -11,14 +11,16 @@ import time
 from pathlib import Path
 from investigator import investigate_case
 
-CASES_DIR = Path("../cases")
-CASES_DIR.mkdir(exist_ok=True)
+AGENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = AGENT_DIR.parent
+
+CASES_DIR = Path(os.getenv("CASES_DIR", str(PROJECT_ROOT / "cases")))
+CASES_DIR.mkdir(exist_ok=True, parents=True)
 
 CASE_PACK_PATH = os.getenv(
     "CASE_PACK_PATH",
-    "../HHGOA_IEEE_DATASETS/case_pack.csv"
+    str(PROJECT_ROOT / "HHGOA_IEEE_DATASETS" / "case_pack.csv")
 )
-
 
 def load_case_pack(path: str) -> list[dict]:
     """Load all 20 cases from case_pack.csv."""
@@ -59,6 +61,11 @@ def run_all():
 
     for i, case in enumerate(cases, 1):
         case_id = case["case_id"]
+        if (CASES_DIR / f"{case_id}.json").exists():
+            print(f"  ⏭ {case_id} already done, skipping")
+            results["success"].append(case_id)
+            continue
+        
         print(f"\n[{i}/20] Starting {case_id}...")
         try:
             answer = investigate_case(case)
@@ -68,7 +75,7 @@ def run_all():
             print(f"  ❌ FAILED {case_id}: {e}")
             results["failed"].append({"case_id": case_id, "error": str(e)})
         # Small delay to avoid rate limiting on Groq free tier
-        time.sleep(15)
+        time.sleep(2)
 
     # Summary
     print(f"\n{'='*60}")

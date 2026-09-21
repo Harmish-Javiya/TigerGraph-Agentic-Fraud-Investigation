@@ -1,75 +1,93 @@
 {
+  "case_id": "HHG-011",
   "case": {
-    "case_id": "HHG-011",
-    "customer_id": "C11923",
-    "card_id": "C11923-K2",
-    "opened_at": "2016-12-29 06:27:44",
-    "flagged_txn_id": "3583368",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C11923 message: 'I never made this $131.30 purchase. Please check my card.' Refers to 3583368.",
+    "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.68,
-    "pattern": "account_takeover",
+    "fraud_probability": 0.5,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583368"
+    ],
+    "first_suspicious_txn_id": "3583368",
+    "connected_card_ids": [
+      "C11923",
+      "C11923-K2"
+    ],
+    "connected_device_profiles": [],
     "exposure_usd": 131.3,
     "evidence": [
       {
-        "signal": "Customer claim",
-        "value": "Did not make the $131.30 purchase",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "The transaction amount ($131.30) is approximately 3.33 times the average transaction amount ($39.45) for this customer.",
+        "source": "graph",
+        "ref": "query:card_history(C11923)",
+        "entity_ids": [
+          "C11923",
+          "3583368"
+        ]
       },
       {
-        "signal": "Transaction amount",
-        "value": "$131.30 (3.3x avg)",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The customer reported that they never made this $131.30 purchase.",
+        "source": "customer",
+        "ref": "",
+        "entity_ids": [
+          "C11923"
+        ]
       },
       {
-        "signal": "Risk score",
-        "value": "0.39",
-        "weight": "low",
-        "supports": "neutral"
-      },
-      {
-        "signal": "Usual channel",
-        "value": "online (matches)",
-        "weight": "low",
-        "supports": "legitimate"
-      },
-      {
-        "signal": "Region activity",
-        "value": "0 transactions in same region last 7 days",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction was made online, which aligns with the customer's usual channels.",
+        "source": "graph",
+        "ref": "query:card_history(C11923)",
+        "entity_ids": [
+          "C11923",
+          "3583368"
+        ]
       }
     ],
-    "analyst_notes": "The customer reports the transaction as unauthorized. Amount is significantly above their average but within their historical max. Risk score is moderate, and there is no recent activity in the billing region, suggesting possible account takeover."
+    "similar_prior_cases": [
+      "CC-2825",
+      "CC-1632",
+      "CC-0588",
+      "CC-4495",
+      "CC-2021"
+    ],
+    "summary": "The customer C11923 reported an unrecognized transaction of $131.30 made online using card C11923-K2. The transaction amount is significantly higher than the customer's average transaction amount. The customer claims they did not make this purchase.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-011"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: no customer reply within 24h"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $131.30 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you initiated a $131.30 online purchase recently, and if not, provide any recent account changes or suspicious activity you may have noticed?",
-      "simulated_response": "I did not make this purchase. It looks suspicious to me. I haven't been in the billing region recently either."
-    }
-  ]
+  "stop_reason": "Awaiting customer response to verify the transaction.",
+  "tool_calls": 7,
+  "tokens": 15056,
+  "latency_s": 25.6
 }

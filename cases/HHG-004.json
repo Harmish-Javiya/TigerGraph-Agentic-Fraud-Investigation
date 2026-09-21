@@ -1,75 +1,99 @@
 {
+  "case_id": "HHG-004",
   "case": {
-    "case_id": "HHG-004",
-    "customer_id": "C08106",
-    "card_id": "C08106-K1",
-    "opened_at": "2016-12-29 07:53:54",
-    "flagged_txn_id": "3583227",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C08106 message: 'I never made this $128.33 purchase. Please check my card.' Refers to 3583227.",
+    "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.73,
+    "fraud_probability": 0.5,
     "pattern": "card_not_present_fraud",
-    "exposure_usd": 128.33,
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3580804",
+      "3583227",
+      "3583499",
+      "3583503",
+      "3584017",
+      "3585446",
+      "3585726",
+      "3587858"
+    ],
+    "first_suspicious_txn_id": "3580804",
+    "connected_card_ids": [
+      "C08106",
+      "C08106-K1"
+    ],
+    "connected_device_profiles": [],
+    "exposure_usd": 384.43,
     "evidence": [
       {
-        "signal": "Transaction amount",
-        "value": "$128.33",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction amount ($128.33) is 3.61 times the customer's average transaction amount ($35.52), indicating unusual activity.",
+        "source": "graph",
+        "ref": "query:card_history(C08106)",
+        "entity_ids": [
+          "C08106",
+          "3583227"
+        ]
       },
       {
-        "signal": "Customer denial",
-        "value": "true",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "The customer reported this transaction as unrecognized, adding to the suspicion of fraudulent activity.",
+        "source": "customer",
+        "ref": "case:HHG-004",
+        "entity_ids": [
+          "C08106",
+          "3583227"
+        ]
       },
       {
-        "signal": "Billing region mismatch",
-        "value": "0 (outside usual regions)",
-        "weight": "medium",
-        "supports": "fraud"
-      },
-      {
-        "signal": "Risk score",
-        "value": "0.34",
-        "weight": "low",
-        "supports": "fraud"
-      },
-      {
-        "signal": "Amount vs. average",
-        "value": "3.6× average",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction was made online, which is a common channel for Card Not Present Fraud.",
+        "source": "document",
+        "ref": "fraud_policy:Card Not Present Fraud",
+        "entity_ids": [
+          "C08106-K1",
+          "3583227"
+        ]
       }
     ],
-    "analyst_notes": "The customer reports the $128.33 online purchase as unauthorized. The amount is near the customer's historical maximum and far above the average, and the billing region does not match any of the customer's usual regions, raising suspicion of card‑not‑present fraud."
+    "similar_prior_cases": [
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
+    ],
+    "summary": "The customer C08106 reported an unrecognized transaction of $128.33. The transaction was made online and has a risk score of 0.34. The amount is significantly higher than the customer's average transaction amount.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-004"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: no customer reply within 24h"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $384.43 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you made a $128.33 online purchase on December 29, 2016, and if not, provide any recent changes to your account or device that might explain this activity?",
-      "simulated_response": "I did not make this purchase. It looks suspicious to me."
-    }
-  ]
+  "stop_reason": "Awaiting customer response to verify the transaction.",
+  "tool_calls": 7,
+  "tokens": 12206,
+  "latency_s": 119.3
 }

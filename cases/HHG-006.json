@@ -1,69 +1,89 @@
 {
+  "case_id": "HHG-006",
   "case": {
-    "case_id": "HHG-006",
-    "customer_id": "C07297",
-    "card_id": "C07297-K1",
-    "opened_at": "2016-11-22 02:30:00",
-    "flagged_txn_id": "3476682",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C07297 message: 'I never made this $482.12 purchase. Please check my card.' Refers to 3476682.",
+    "status": "open",
     "verdict": "uncertain",
     "fraud_probability": 0.6,
-    "pattern": "card_testing",
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3476682"
+    ],
+    "first_suspicious_txn_id": "3476682",
+    "connected_card_ids": [
+      "C07297-K1"
+    ],
+    "connected_device_profiles": [],
     "exposure_usd": 482.12,
     "evidence": [
       {
-        "signal": "Transaction amount",
-        "value": "$482.12",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The customer C07297 reported that they did not make a $482.12 purchase with transaction ID 3476682.",
+        "source": "customer",
+        "ref": "customer message",
+        "entity_ids": [
+          "C07297",
+          "3476682"
+        ]
       },
       {
-        "signal": "Number of transactions in 72h window",
-        "value": "9",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction was made online, which aligns with the 'Card Not Present Fraud' pattern.",
+        "source": "graph",
+        "ref": "transaction details",
+        "entity_ids": [
+          "3476682"
+        ]
       },
       {
-        "signal": "Channel of transaction",
-        "value": "online",
-        "weight": "low",
-        "supports": "neutral"
-      },
-      {
-        "signal": "Customer's reported fraud",
-        "value": "yes",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "The customer's baseline shows usual channels including 'in_person' and 'online', but this transaction is isolated (D1=0) and has a single count (C1=1).",
+        "source": "graph",
+        "ref": "customer baseline",
+        "entity_ids": [
+          "C07297"
+        ]
       }
     ],
-    "analyst_notes": "The $482.12 online purchase is well above the customer's average spend and follows a burst of similar‑sized online transactions, raising suspicion of card testing or account takeover. The customer has explicitly denied making the purchase, adding strong fraud indication."
+    "similar_prior_cases": [
+      "CC-2825",
+      "CC-4356",
+      "CC-0588"
+    ],
+    "summary": "The customer denies making a $482.12 online purchase. The transaction is isolated and online, fitting the 'Card Not Present Fraud' pattern. The customer has a history of various transactions but no recent suspicious activity.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-006"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: no customer reply within 24h"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $482.12 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you authorized a $482.12 online purchase on the date of the transaction?",
-      "simulated_response": "I did not make that purchase. It looks like someone has accessed my account."
-    }
-  ]
+  "stop_reason": "Awaiting customer response to verify transaction legitimacy.",
+  "tool_calls": 8,
+  "tokens": 15437,
+  "latency_s": 104.0
 }

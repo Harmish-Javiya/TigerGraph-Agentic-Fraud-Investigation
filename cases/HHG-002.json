@@ -1,66 +1,103 @@
 {
+  "case_id": "HHG-002",
   "case": {
-    "case_id": "HHG-002",
-    "customer_id": "C11891",
-    "card_id": "C11891-K1",
-    "opened_at": "2016-11-22 23:27:07",
-    "flagged_txn_id": "3478782",
-    "trigger_type": "risk_score",
-    "trigger_text": "Real-time model scored transaction 3478782 ($292.36, online) at 0.79. Review and decide.",
-    "verdict": "uncertain",
-    "fraud_probability": 0.5,
-    "pattern": "undocumented",
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.95,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3478782"
+    ],
+    "first_suspicious_txn_id": "3478782",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
     "exposure_usd": 292.36,
     "evidence": [
       {
-        "signal": "Transaction Amount",
-        "value": "$292.36",
-        "weight": "medium",
-        "supports": "neutral"
+        "claim": "The transaction amount of $292.36 equals the customer's historical maximum transaction amount, indicating a potential anomaly.",
+        "source": "document",
+        "ref": "customer_baseline(C11891)",
+        "entity_ids": [
+          "C11891",
+          "3478782"
+        ]
       },
       {
-        "signal": "Risk Score",
-        "value": "0.79",
-        "weight": "medium",
-        "supports": "neutral"
+        "claim": "The transaction was made online, which matches the customer's usual channel but is the only transaction in the last 72 hours.",
+        "source": "document",
+        "ref": "customer_baseline(C11891)",
+        "entity_ids": [
+          "C11891"
+        ]
       },
       {
-        "signal": "Transaction Channel",
-        "value": "online",
-        "weight": "low",
-        "supports": "legitimate"
+        "claim": "The risk score of 0.79 exceeds the 0.6 threshold for Card Not Present fraud alerts.",
+        "source": "graph",
+        "ref": "risk_score(3478782)",
+        "entity_ids": [
+          "3478782"
+        ]
       }
     ],
-    "analyst_notes": "The transaction matches the customer's historical maximum amount and occurs on a familiar online channel, but the moderate risk score and missing billing region raise some concern."
-  },
-  "sar": {
-    "file": true,
-    "subject_name": "C11891",
-    "subject_id": "C11891",
-    "amount": 292.36,
-    "activity_type": "undocumented",
-    "narrative": "**Suspicious Activity Report (SAR) Narrative – Case HHG‑002**\n\nOn [date], Customer C11891 conducted a $292.36 transaction through a familiar online channel. The amount equals the customer’s historical maximum, which by itself is not atypical. However, the transaction received a moderate risk score and the billing region field was blank, creating a discrepancy between expected and reported data. The combination of a maximum‑level amount, missing billing region, and elevated risk rating suggests a potential attempt to exploit the customer’s established spending pattern. Further investigation is warranted to verify the legitimacy of the funds, confirm the true billing location, and assess whether the transaction is part of an undocumented fraud pattern. This activity is being reported as suspicious due to the incongruent risk indicators despite the otherwise familiar channel and amount."
-  },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
+    "similar_prior_cases": [
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
     ],
-    "final": [
-      "CREATE_CASE",
-      "FILE_REPORT",
-      "ESCALATE_TO_ANALYST"
-    ],
-    "rules_applied": [
-      "R1",
-      "R9"
-    ]
+    "summary": "Transaction 3478782 for $292.36 was made online by customer C11891 on 2016-11-22 and received a risk score of 0.79. The amount matches the customer's historical maximum and the risk score exceeds the fraud threshold, suggesting possible Card Not Present fraud. Verification with the customer is recommended before any further action.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-002"
   },
   "evidence_requests": [
     {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm that you authorized this $292.36 online purchase?",
-      "simulated_response": "No, I did not authorize that $292.36 online purchase."
+      "type": "customer_validation",
+      "asked_after_step": 5,
+      "assumed_response": "I did not authorize this transaction."
     }
-  ]
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      },
+      {
+        "action": "REIMBURSE_CUSTOMER",
+        "route": "auto",
+        "reason": "policy rule"
+      }
+    ],
+    "what_changed": "Customer response: 'I did not authorize this transaction.'. Added: REIMBURSE_CUSTOMER. Removed: none."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Exposure $292.36 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Awaiting customer verification to confirm or deny the suspicious transaction.",
+  "tool_calls": 6,
+  "tokens": 15394,
+  "latency_s": 28.9
 }

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud Investigation Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #161d2e; --border: #26304a; --text: #e6ebf5;
+    --muted: #8b96af; --accent: #4f8cff; --green: #35c98f; --red: #ef5a6f;
+    --amber: #f0b429;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  header {
+    padding: 20px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .controls { display: flex; gap: 10px; align-items: center; }
+  button {
+    background: var(--accent); color: white; border: none; border-radius: 8px;
+    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #progress-wrap { display: none; padding: 14px 28px; border-bottom: 1px solid var(--border); }
+  #progress-bar-bg { background: #1f2740; border-radius: 6px; height: 8px; overflow: hidden; }
+  #progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width .3s; }
+  #progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  #run-summary { margin-top: 10px; font-size: 12px; }
+  #run-summary .fail-row { color: var(--red); margin-top: 4px; }
+  #run-summary .fail-row code { color: var(--text); background: #0b0f19; padding: 1px 5px; border-radius: 4px; }
+  #run-summary .ok-line { color: var(--green); }
+  main { padding: 20px 28px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  tr:hover { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .b-fraud { background: rgba(239,90,111,0.15); color: var(--red); }
+  .b-legit { background: rgba(53,201,143,0.15); color: var(--green); }
+  .b-uncertain { background: rgba(240,180,41,0.15); color: var(--amber); }
+  .b-run { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .b-fail { background: rgba(239,90,111,0.15); color: var(--red); }
+  .sar-yes { color: var(--red); font-weight: 600; }
+  .sar-no { color: var(--muted); }
+  .row-btn { padding: 5px 10px; font-size: 12px; }
+  pre {
+    background: #0b0f19; border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; font-size: 12px; overflow: auto; max-height: 420px;
+  }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+  .case-detail { display: none; }
+  .case-detail.open { display: table-row; }
+  .case-detail td { background: #0d1220; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Fraud Investigation Dashboard</h1>
+    <div class="sub">GraphRAG + policy-engine case investigator</div>
+  </div>
+  <div class="controls">
+    <input id="manual-case-id" type="text" placeholder="Case ID e.g. HHG-012"
+           style="background:#0b0f19; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px; font-size:13px; width:160px;">
+    <button class="secondary" id="manual-run-btn">Run case</button>
+    <button class="secondary" id="refresh-btn">Refresh</button>
+    <button id="run-all-btn">Run all cases</button>
+  </div>
+</header>
+
+<div id="progress-wrap">
+  <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+  <div id="progress-label">Starting…</div>
+  <div id="run-summary"></div>
+</div>
+
+<main>
+  <table id="cases-table">
+    <thead>
+      <tr>
+        <th>Case</th>
+        <th>Status</th>
+        <th>Verdict</th>
+        <th>Pattern</th>
+        <th>Fraud Prob.</th>
+        <th>Exposure</th>
+        <th>SAR</th>
+        <th>Tool calls</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="cases-body">
+      <tr><td colspan="9" class="empty">Loading cases…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<script>
+const state = { cases: {}, jobId: null, pollTimer: null };
+
+function badgeForVerdict(v) {
+  if (!v) return `<span class="badge b-run">pending</span>`;
+  const cls = v === "fraud" ? "b-fraud" : v === "legitimate" ? "b-legit" : "b-uncertain";
+  return `<span class="badge ${cls}">${v}</span>`;
+}
+
+function fmtMoney(n) {
+  if (n === undefined || n === null) return "-";
+  return "$" + Number(n).toFixed(2);
+}
+
+async function fetchCases() {
+  const res = await fetch("/api/cases");
+  const cases = await res.json();
+  state.cases = {};
+  for (const c of cases) state.cases[c.case_id] = c;
+  render();
+}
+
+function render() {
+  const body = document.getElementById("cases-body");
+  const ids = Object.keys(state.cases).sort();
+  if (ids.length === 0) {
+    body.innerHTML = `<tr><td colspan="9" class="empty">No cases run yet. Click "Run all cases" to start.</td></tr>`;
+    return;
+  }
+  body.innerHTML = ids.map(id => rowHtml(state.cases[id])).join("");
+}
+
+function rowHtml(ans) {
+  const c = ans.case;
+  const sar = ans.sar && ans.sar.file;
+  return `
+    <tr>
+      <td><strong>${ans.case_id}</strong></td>
+      <td>${c.status}</td>
+      <td>${badgeForVerdict(c.verdict)}</td>
+      <td>${c.pattern}</td>
+      <td>${(c.fraud_probability ?? 0).toFixed(2)}</td>
+      <td>${fmtMoney(c.exposure_usd)}</td>
+      <td class="${sar ? 'sar-yes' : 'sar-no'}">${sar ? "Filed" : "No"}</td>
+      <td>${ans.tool_calls ?? "-"}</td>
+      <td>
+        <button class="secondary row-btn" onclick="toggleDetail('${ans.case_id}')">Details</button>
+        <button class="row-btn" onclick="runCase('${ans.case_id}')">Re-run</button>
+      </td>
+    </tr>
+    <tr class="case-detail" id="detail-${ans.case_id}">
+      <td colspan="9"><pre>${escapeHtml(JSON.stringify(ans, null, 2))}</pre></td>
+    </tr>
+  `;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+}
+
+function toggleDetail(id) {
+  document.getElementById(`detail-${id}`).classList.toggle("open");
+}
+
+async function runCase(caseId) {
+  const res = await fetch("/api/run_case", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ case_id: caseId })
+  });
+  const data = await res.json();
+  if (data.job_id) startPolling(data.job_id, 1);
+}
+
+async function runAll() {
+  document.getElementById("run-all-btn").disabled = true;
+  const res = await fetch("/api/run_all", { method: "POST" });
+  const data = await res.json();
+  if (data.job_id) startPolling(data.job_id, data.total);
+}
+
+function startPolling(jobId, total) {
+  state.jobId = jobId;
+  document.getElementById("progress-wrap").style.display = "block";
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(() => pollJob(jobId, total), 2000);
+  pollJob(jobId, total);
+}
+
+async function pollJob(jobId, total) {
+  const res = await fetch(`/api/job_status?job_id=${jobId}`);
+  if (!res.ok) return;
+  const job = await res.json();
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+  document.getElementById("progress-bar").style.width = pct + "%";
+  document.getElementById("progress-label").textContent =
+    job.status === "done"
+      ? `Done — ${job.done}/${job.total} cases processed.`
+      : `Running: ${job.current_case || "…"} — ${job.done}/${job.total} complete`;
+
+  renderRunSummary(job);
+
+  if (job.status === "done") {
+    clearInterval(state.pollTimer);
+    document.getElementById("run-all-btn").disabled = false;
+    await fetchCases();
+  }
+}
+
+function renderRunSummary(job) {
+  const el = document.getElementById("run-summary");
+  const entries = Object.entries(job.results || {});
+  if (entries.length === 0) { el.innerHTML = ""; return; }
+
+  const failed = entries.filter(([, v]) => v.startsWith("failed"));
+  const succeeded = entries.filter(([, v]) => v === "success");
+
+  let html = `<div class="ok-line">${succeeded.length} succeeded</div>`;
+  if (failed.length > 0) {
+    html += `<div class="fail-row" style="color:var(--red); font-weight:600; margin-top:6px;">${failed.length} failed:</div>`;
+    for (const [caseId, err] of failed) {
+      const reason = err.replace(/^failed:/, "");
+      html += `<div class="fail-row"><code>${caseId}</code> — ${escapeHtml(reason)}</div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+document.getElementById("refresh-btn").addEventListener("click", fetchCases);
+document.getElementById("run-all-btn").addEventListener("click", runAll);
+document.getElementById("manual-run-btn").addEventListener("click", () => {
+  const id = document.getElementById("manual-case-id").value.trim();
+  if (id) runCase(id);
+});
+
+fetchCases();
+</script>
+
+</body>
+</html>

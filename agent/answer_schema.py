@@ -157,8 +157,13 @@ class Case(BaseModel):
 
     @model_validator(mode="after")
     def validate_case(self):
-        if self.pattern == "undocumented" and not self.pattern_description:
-            raise ValueError("pattern_description required when pattern=undocumented")
+        if self.pattern == "undocumented":
+            word_count = len(self.pattern_description.split())
+            if word_count < 20:
+                raise ValueError(
+                    f"pattern_description required when pattern=undocumented "
+                    f"and must be at least 20 words (got {word_count})"
+                )
         if self.verdict == "legitimate":
             self.affected_txn_ids = []
             self.exposure_usd = 0.0
@@ -198,37 +203,46 @@ class CaseAnswer(BaseModel):
 # ── Route helper ──────────────────────────────────────────────────────────────
 
 def get_route(action: str, exposure: float) -> str:
-    """Determine approval route based on action and exposure."""
-    high_risk_actions = {"FILE_REPORT", "BLOCK_ALL_CARDS", "ESCALATE_TO_ANALYST"}
-    auto_actions = {"CREATE_CASE", "MONITOR_CARD", "MONITOR_CONNECTED_CARDS",
-                    "VERIFY_WITH_CUSTOMER", "WARN_CUSTOMER"}
-
-    if action in high_risk_actions:
-        return "L2" if exposure > 1000 else "L1"
+    """
+    Determine approval route based on action and exposure, per Fraud Policy
+    v1.0 §2. Only 'auto' actions may be executed by the agent; L1/L2 actions
+    are recommended and wait for a human.
+    """
+    auto_actions = {
+        "ALLOW_TRANSACTION", "MONITOR_CARD", "MONITOR_CONNECTED_CARDS",
+        "WARN_CUSTOMER", "VERIFY_WITH_CUSTOMER", "STEP_UP_AUTH",
+        "GENERATE_REPORT", "CREATE_CASE", "ESCALATE_TO_ANALYST", "CLOSE_NO_FRAUD",
+    }
     if action in auto_actions:
         return "auto"
+    if action == "DECLINE_TRANSACTION":
+        return "L1"
     if action == "BLOCK_CARD":
-        return "L1"
-    if action == "DECLINE":
-        return "L1"
+        return "L1" if exposure <= 2500 else "L2"
+    if action == "BLOCK_ALL_CARDS":
+        return "L2"
+    if action == "FILE_REPORT":
+        return "L2"
     return "auto"
 
 
 def get_rule(action: str, context: dict) -> str:
-    """Map action to the policy rule that triggered it."""
+    """Map action to the policy rule that triggered it, per Fraud Policy v1.0."""
     rules = {
-        "VERIFY_WITH_CUSTOMER": "R1: probability < 0.85, verify before blocking",
-        "BLOCK_CARD": "R2: confirmed unauthorized use",
+        "ALLOW_TRANSACTION": "Default — no rule triggered, transaction allowed",
+        "VERIFY_WITH_CUSTOMER": "R1: probability < 0.70, verify before blocking",
+        "BLOCK_CARD": "R2/R5: confirmed unauthorized use",
         "CLOSE_NO_FRAUD": "R3: customer confirmed legitimate",
         "MONITOR_CARD": "R4: no customer reply within 24h",
-        "DECLINE": "R4/R5: high risk transaction",
-        "STEP_UP_AUTH": "R5: card testing pattern detected",
+        "DECLINE_TRANSACTION": "R4/R5: high risk transaction pending or card testing",
+        "STEP_UP_AUTH": "R1/R5: verification signal or card testing pattern detected",
         "MONITOR_CONNECTED_CARDS": "R6: shared device/region origin",
-        "FILE_REPORT": "R2/R6: confirmed fraud with shared origin or high exposure",
+        "FILE_REPORT": "R2/R6/R9: confirmed fraud with shared origin, high exposure, or undocumented coordinated abuse",
+        "GENERATE_REPORT": "Internal record only — no case opened",
         "WARN_CUSTOMER": "R7: disputed but matches recurring pattern",
-        "ESCALATE_TO_ANALYST": "R8/R9: uncertain with high exposure or undocumented pattern",
-        "CREATE_CASE": "R2: fraud confirmed, opening case",
-        "BLOCK_ALL_CARDS": "R10: 2+ cards confirmed compromised",
+        "ESCALATE_TO_ANALYST": "R8/R9: uncertain with high exposure/conflicting evidence, or undocumented pattern",
+        "CREATE_CASE": "§3a: investigation warranted, case opened",
+        "BLOCK_ALL_CARDS": "R10: 2+ cards confirmed compromised or credentials confirmed compromised",
     }
     return rules.get(action, "policy rule")
 

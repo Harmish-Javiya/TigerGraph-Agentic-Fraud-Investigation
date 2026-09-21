@@ -1,70 +1,100 @@
 {
+  "case_id": "HHG-010",
   "case": {
-    "case_id": "HHG-010",
-    "customer_id": "C10434",
-    "card_id": "C10434-K1",
-    "opened_at": "2016-12-02 18:18:27",
-    "flagged_txn_id": "3506725",
-    "trigger_type": "risk_score",
-    "trigger_text": "Real-time model scored transaction 3506725 ($1,000.03, online) at 0.90. Review and decide.",
-    "verdict": "uncertain",
-    "fraud_probability": 0.7,
+    "status": "open",
+    "verdict": "fraud",
+    "fraud_probability": 0.9,
     "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3506725"
+    ],
+    "first_suspicious_txn_id": "3506725",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
     "exposure_usd": 1000.03,
     "evidence": [
       {
-        "signal": "Transaction Amount",
-        "value": "$1,000.03",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "Transaction 3506725 was flagged with a high risk score of 0.9, indicating a strong likelihood of fraud.",
+        "source": "document",
+        "ref": "risk_model",
+        "entity_ids": [
+          "3506725"
+        ]
       },
       {
-        "signal": "Email Match",
-        "value": "anonymous.com",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction amount of $1,000.03 is unusually high for a new account with no prior transaction history (customer C10434).",
+        "source": "document",
+        "ref": "customer_profile",
+        "entity_ids": [
+          "C10434",
+          "3506725"
+        ]
       },
       {
-        "signal": "Transaction Channel",
-        "value": "online",
-        "weight": "low",
-        "supports": "neutral"
-      },
-      {
-        "signal": "Region",
-        "value": "469",
-        "weight": "low",
-        "supports": "legitimate"
+        "claim": "No prior transactions or known usage patterns exist for card C10434-K1, making the online transaction atypical.",
+        "source": "document",
+        "ref": "card_history",
+        "entity_ids": [
+          "C10434-K1",
+          "3506725"
+        ]
       }
     ],
-    "analyst_notes": "The transaction amount is significantly higher than the customer's average, and the email match flag is set to anonymous.com, indicating potential fraud."
+    "similar_prior_cases": [],
+    "summary": "Transaction 3506725 for $1,000.03 was flagged with a risk score of 0.9. The customer C10434 has no prior transaction history, and the card C10434-K1 has no established usage patterns. Given the high amount and lack of baseline, the case remains uncertain and requires further verification.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-010"
   },
-  "sar": {
-    "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
-  },
+  "evidence_requests": [],
   "next_best_actions": {
     "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      }
     ],
     "final": [
-      "ESCALATE_TO_ANALYST"
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R2/R6: confirmed fraud with shared origin or high exposure"
+      }
     ],
-    "rules_applied": [
-      "R1",
-      "R8"
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": true,
+    "reason": "R2/R6: card_not_present_fraud confirmed",
+    "narrative": "On December 2 2016, a transaction identified as 3506725 was processed on card C10434‑K1 belonging to customer C10434. The transaction amount was $1,000.03 and it was flagged with a risk score of 0.9 under the card‑not‑present fraud pattern. The transaction was conducted through an unknown channel, and no geographic region could be determined. Customer C10434 and card C10434‑K1 have no prior transaction history or established usage patterns in the institution’s records. Because the card was not present, the transaction could have been initiated remotely, which aligns with the identified fraud pattern. The high dollar amount, combined with the absence of a baseline of normal activity for both the customer and the card, raises significant suspicion. No other cards are linked to customer C10434, eliminating the possibility of legitimate intra‑customer activity. Accordingly, the case remains uncertain and warrants further verification and investigation.",
+    "subjects": [
+      "C10434",
+      "C10434-K1"
+    ],
+    "total_amount_usd": 1000.03,
+    "activity_dates": [
+      "2016-12-02",
+      "2016-12-02"
     ]
   },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm this transaction and provide more details about your recent online activity?",
-      "simulated_response": "I don't recognize this transaction, it looks suspicious to me."
-    }
-  ]
+  "stop_reason": "Investigation paused pending customer verification to confirm legitimacy of the transaction.",
+  "tool_calls": 13,
+  "tokens": 18172,
+  "latency_s": 91.4
 }

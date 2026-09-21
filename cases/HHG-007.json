@@ -1,63 +1,99 @@
 {
+  "case_id": "HHG-007",
   "case": {
-    "case_id": "HHG-007",
-    "customer_id": "C09933",
-    "card_id": "C09933-K2",
-    "opened_at": "2016-12-05 03:46:14",
-    "flagged_txn_id": "3514948",
-    "trigger_type": "risk_score",
-    "trigger_text": "Real-time model scored transaction 3514948 ($111.92, in billing region 264.0) at 0.87. Review and decide.",
-    "verdict": "uncertain",
-    "fraud_probability": 0.6,
+    "status": "open",
+    "verdict": "fraud",
+    "fraud_probability": 0.87,
     "pattern": "out_of_region_use",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3514948"
+    ],
+    "first_suspicious_txn_id": "3514948",
+    "connected_card_ids": [
+      "C09933",
+      "C09933-K2"
+    ],
+    "connected_device_profiles": [],
     "exposure_usd": 111.92,
     "evidence": [
       {
-        "signal": "unusual_region",
-        "value": "264.0",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction occurred in billing region 264.0, which is not among the customer's usual regions ['469','441','184','226','444','272','433','225','337','204'].",
+        "source": "graph",
+        "ref": "query:card_history(C09933)",
+        "entity_ids": [
+          "C09933",
+          "3514948"
+        ]
       },
       {
-        "signal": "transaction_amount",
-        "value": "$111.92",
-        "weight": "low",
-        "supports": "legitimate"
+        "claim": "The transaction amount of $111.92 is close to the customer's average transaction amount of $123.85, but the region mismatch raises concern.",
+        "source": "graph",
+        "ref": "query:card_history(C09933)",
+        "entity_ids": [
+          "C09933",
+          "3514948"
+        ]
       },
       {
-        "signal": "transaction_channel",
-        "value": "in_person",
-        "weight": "low",
-        "supports": "legitimate"
+        "claim": "The channel is in_person, which matches the customer's usual channels, yet the D1 gap of 106 days and large distance metric (dist1=79) indicate atypical behavior.",
+        "source": "graph",
+        "ref": "query:card_history(C09933)",
+        "entity_ids": [
+          "C09933",
+          "3514948"
+        ]
       }
     ],
-    "analyst_notes": "The transaction occurs in a region not seen in the customer's historical pattern, but the amount and channel match typical behavior, resulting in moderate uncertainty."
+    "similar_prior_cases": [
+      "CC-2825",
+      "CC-1635",
+      "CC-4495",
+      "CC-4816",
+      "CC-2641"
+    ],
+    "summary": "Transaction 3514948 for $111.92 was flagged with a risk score of 0.87. It occurred in region 264, which the customer has never used, matching the out_of_region_use pattern. While the amount and channel are typical for the customer, the region anomaly and long inactivity period increase suspicion, leading to an open uncertain verdict pending verification.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-007"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: confirmed unauthorized use"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $111.92 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm if you made a purchase in region 264.0 on the date of this transaction?",
-      "simulated_response": "I did not make that purchase."
-    }
-  ]
+  "stop_reason": "Investigation paused pending customer verification; no further action until response.",
+  "tool_calls": 8,
+  "tokens": 20566,
+  "latency_s": 30.3
 }

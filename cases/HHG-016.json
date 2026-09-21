@@ -1,75 +1,89 @@
 {
+  "case_id": "HHG-016",
   "case": {
-    "case_id": "HHG-016",
-    "customer_id": "C09988",
-    "card_id": "C09988-K1",
-    "opened_at": "2016-12-12 01:39:08",
-    "flagged_txn_id": "3534820",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C09988 message: 'I never made this $59.67 purchase. Please check my card.' Refers to 3534820.",
+    "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.6,
+    "fraud_probability": 0.5,
     "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3534820"
+    ],
+    "first_suspicious_txn_id": "3534820",
+    "connected_card_ids": [
+      "C09988",
+      "C09988-K1"
+    ],
+    "connected_device_profiles": [],
     "exposure_usd": 59.67,
     "evidence": [
       {
-        "signal": "Transaction amount",
-        "value": "$59.67",
-        "weight": "low",
-        "supports": "neutral"
+        "claim": "Customer C09988 reported an unrecognized $59.67 online purchase on card C09988-K1, which exceeds the customer's average transaction amount of $41.81 by 43%.",
+        "source": "graph",
+        "ref": "query:customer_message(C09988)",
+        "entity_ids": [
+          "C09988",
+          "C09988-K1",
+          "3534820"
+        ]
       },
       {
-        "signal": "Transaction channel",
-        "value": "online",
-        "weight": "low",
-        "supports": "neutral"
+        "claim": "Transaction 3534820 was executed via the online channel with a risk score of 0.37, matching the Card Not Present fraud pattern criteria (online, unusual merchant, elevated C1).",
+        "source": "graph",
+        "ref": "query:transaction_details(3534820)",
+        "entity_ids": [
+          "3534820"
+        ]
       },
       {
-        "signal": "Billing region",
-        "value": "0",
-        "weight": "medium",
-        "supports": "fraud"
-      },
-      {
-        "signal": "Recent similar transaction",
-        "value": "yes",
-        "weight": "medium",
-        "supports": "fraud"
-      },
-      {
-        "signal": "Customer claim",
-        "value": "unauthorized",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "Policy document for Card Not Present fraud recommends VERIFY_WITH_CUSTOMER (R1) when risk_score > 0.6; although this transaction's score is 0.37, the customer dispute and elevated C1 (9 transactions) raise concern.",
+        "source": "document",
+        "ref": "policy:card_not_present_fraud",
+        "entity_ids": []
       }
     ],
-    "analyst_notes": "The transaction matches the customer's typical online channel but originates from an undefined billing region and has no recent regional activity, raising suspicion. The customer explicitly denies the purchase, and a recent identical transaction suggests possible account compromise."
+    "similar_prior_cases": [
+      "CC-5558",
+      "CC-2825",
+      "CC-4495"
+    ],
+    "summary": "Customer C09988 disputes a $59.67 online transaction on 2016-12-11. The transaction aligns with Card Not Present fraud characteristics and has a moderate risk score (0.37). The amount is 1.43× the customer's average spend, and the customer has flagged it as unauthorized, prompting further verification.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-016"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: no customer reply within 24h"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $59.67 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "MONITOR_CARD"
-    ],
-    "rules_applied": [
-      "R1"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you made a $59.67 online purchase on 2016-12-11, and if not, have you noticed any other unauthorized activity on your account?",
-      "simulated_response": "I did not make that purchase. It looks like someone has accessed my account."
-    }
-  ]
+  "stop_reason": "Investigation paused pending the cardholder's confirmation of the disputed transaction.",
+  "tool_calls": 7,
+  "tokens": 11344,
+  "latency_s": 26.3
 }

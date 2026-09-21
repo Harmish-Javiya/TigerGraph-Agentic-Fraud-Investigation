@@ -1,84 +1,93 @@
 {
+  "case_id": "HHG-018",
   "case": {
-    "case_id": "HHG-018",
-    "customer_id": "C02354",
-    "card_id": "C02354-K2",
-    "opened_at": "2016-11-27 14:41:26",
-    "flagged_txn_id": "3491361",
-    "trigger_type": "customer_report",
-    "trigger_text": "Customer C02354 message: 'I never made this $39.08 purchase. Please check my card.' Refers to 3491361.",
-    "verdict": "fraud",
-    "fraud_probability": 0.75,
+    "status": "open",
+    "verdict": "uncertain",
+    "fraud_probability": 0.5,
     "pattern": "out_of_region_use",
-    "exposure_usd": 39.08,
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3491361",
+      "3483772",
+      "3484065",
+      "3484403",
+      "3485990",
+      "3485998",
+      "3486080"
+    ],
+    "first_suspicious_txn_id": "3491361",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 560.03,
     "evidence": [
       {
-        "signal": "transaction_amount_relative_to_average",
-        "value": "39.08 vs avg 141.15 (27.7%)",
-        "weight": "medium",
-        "supports": "fraud"
+        "claim": "The transaction region (126) is not in the customer's usual regions.",
+        "source": "graph",
+        "ref": "query:card_history(C02354)",
+        "entity_ids": [
+          "C02354",
+          "126"
+        ]
       },
       {
-        "signal": "billing_region_mismatch",
-        "value": "region 126 not in customer's usual regions",
-        "weight": "high",
-        "supports": "fraud"
+        "claim": "The customer disputes the transaction, stating they never made the $39.08 purchase.",
+        "source": "customer",
+        "ref": "",
+        "entity_ids": [
+          "C02354"
+        ]
       },
       {
-        "signal": "dormant_account",
-        "value": "333 days since last transaction",
-        "weight": "high",
-        "supports": "fraud"
-      },
-      {
-        "signal": "customer_claim",
-        "value": "customer reports never made the purchase",
-        "weight": "high",
-        "supports": "fraud"
-      },
-      {
-        "signal": "match_flags",
-        "value": "M1=T M2=T M3=T M5=F",
-        "weight": "medium",
-        "supports": "fraud"
-      },
-      {
-        "signal": "email_match",
-        "value": "none",
-        "weight": "low",
-        "supports": "neutral"
+        "claim": "The transaction was made in-person, which is a common channel for the customer.",
+        "source": "graph",
+        "ref": "query:card_history(C02354)",
+        "entity_ids": [
+          "C02354"
+        ]
       }
     ],
-    "analyst_notes": "The transaction occurs in a region never seen for this card and follows a long dormant period. The customer explicitly denies the purchase, and multiple match flags raise suspicion. Combined with a moderate risk score, the evidence leans toward fraud."
+    "similar_prior_cases": [
+      "CC-5565",
+      "CC-5561",
+      "CC-5560"
+    ],
+    "summary": "The customer disputes a $39.08 in‑person purchase that occurred in billing region 126, which is not among the cardholder's usual regions. While the channel matches typical behavior, the out‑of‑region signal raises suspicion, so the case remains open pending verification.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-018"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: fraud confirmed, opening case"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.85, verify before blocking"
+      }
+    ],
+    "final": [
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "L1",
+        "reason": "R8/R9: uncertain with high exposure or undocumented pattern"
+      }
+    ],
+    "what_changed": "nothing"
   },
   "sar": {
     "file": false,
-    "subject_name": null,
-    "subject_id": null,
-    "amount": null,
-    "activity_type": null,
-    "narrative": null
+    "reason": "Exposure $560.03 below threshold or verdict not confirmed fraud",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "next_best_actions": {
-    "initial": [
-      "CREATE_CASE",
-      "VERIFY_WITH_CUSTOMER"
-    ],
-    "final": [
-      "CREATE_CASE",
-      "BLOCK_CARD",
-      "REIMBURSE_CUSTOMER"
-    ],
-    "rules_applied": [
-      "R1",
-      "R2"
-    ]
-  },
-  "evidence_requests": [
-    {
-      "request_type": "CUSTOMER_CONTACT",
-      "question": "Can you confirm whether you made a $39.08 in‑person purchase on 2016‑11‑24, and if so, provide the merchant name and location?",
-      "simulated_response": "I did not make this purchase. It looks like fraud."
-    }
-  ]
+  "stop_reason": "Investigation paused pending customer confirmation; no further action will be taken until the cardholder responds.",
+  "tool_calls": 7,
+  "tokens": 19550,
+  "latency_s": 72.3
 }
