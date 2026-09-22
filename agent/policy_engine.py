@@ -19,18 +19,30 @@ class PolicyInput:
     fraud_probability: float                        # 0.0 - 1.0
     exposure_usd: float                              # total amount at risk
     pattern: str                                     # detected fraud pattern
-    customer_responded: Optional[bool]               # True=replied, None=no reply
-    customer_confirmed_fraud: Optional[bool]         # True=denied txn (fraud), False=confirmed legit, None=no reply
-    shared_origin: bool                              # device/region/email shared with other fraud
-    n_cards_confirmed: int                           # confirmed-fraud cards for this customer
-    has_prior_fraud: bool                            # customer has prior confirmed fraud cases
+    customer_responded: Optional[bool]               # True=replied, None=no validation request
+    customer_confirmed_fraud: Optional[bool]         # retained for compatibility; never inferred from the LLM
+    shared_origin: bool                              # retained for compatibility; use shared_origin_confirmed below
+    n_cards_confirmed: int                           # retained for compatibility; use confirmed_compromised_cards below
+    has_prior_fraud: bool                            # historical context, not a policy fact by itself
     channel: str                                     # online | in_person
-    evidence_count: int = 0                          # §6 stopping rule: independent evidence items gathered
+    evidence_count: int = 0                          # retrieved evidence records (not §6 support count)
     evidence_conflicts: bool = False                 # §R8: graph-derived signals disagree with the LLM's read
     card_testing_cleared_over_100: bool = False      # §R5: a >$100 purchase already cleared
     matches_recurring_charge: bool = False           # §R7: disputed charge matches known recurring pattern
     coordinated_across_customers: bool = False       # §R9: undocumented + coordinated/repeated abuse signal
     credentials_confirmed_compromised: bool = False  # §R10 OR-condition
+    # These predicates are populated from validated graph/customer state in
+    # investigator.py.  Model probability, pattern labels, and prose must not
+    # set them.
+    customer_denied: bool = False
+    customer_confirmed: bool = False
+    customer_no_response_24h: bool = False
+    card_testing_detected: bool = False
+    shared_origin_confirmed: bool = False
+    coordinated_abuse_confirmed: bool = False
+    confirmed_compromised_cards: int = 0
+    independent_support_count: int = 0
+    weak_evidence: bool = False
 
 
 @dataclass
@@ -40,6 +52,8 @@ class PolicyOutput:
     rules_applied: list[str]
     file_sar: bool
     escalate: bool
+    action_reasons: dict[str, str]
+    sar_reason: str
 
 
 def deduplicate(actions: list[str]) -> list[str]:
@@ -59,127 +73,146 @@ def run_policy(p: PolicyInput) -> PolicyOutput:
     rules: list[str] = []
     file_sar = False
     escalate = False
+    reasons: dict[str, str] = {"CREATE_CASE": "§3a: investigation warranted, case opened"}
+    sar_reasons: list[str] = []
+
+    def add(action: str, reason: str, *, target: list[str] = final) -> None:
+        target.append(action)
+        # If this action was already justified by an earlier rule in this same
+        # run, combine the citations (e.g. "R2: ...; R5: ...") instead of
+        # silently dropping the second rule's reason. Still fully deterministic
+        # — nothing here is authored by an LLM, only concatenated from the
+        # rule text this function itself is passing in.
+        if action in reasons and reason not in reasons[action]:
+            reasons[action] = f"{reasons[action]}; {reason}"
+        else:
+            reasons.setdefault(action, reason)
+
+    def output() -> PolicyOutput:
+        sar_reason = (
+            "; ".join(sar_reasons) if sar_reasons
+            else "No deterministic policy condition requires FILE_REPORT."
+        )
+        return PolicyOutput(
+            deduplicate(initial), deduplicate(final), deduplicate(rules),
+            file_sar, escalate, reasons, sar_reason,
+        )
 
     # ── Initial actions (before customer contact / final evidence) ─────────
     # §3a: a case is opened whenever an investigation is warranted.
     initial.append("CREATE_CASE")
 
     # §R1: verify (or step up) before blocking below the 0.70 confidence bar
-    if p.fraud_probability < R1_VERIFY_THRESHOLD:
-        initial.append("VERIFY_WITH_CUSTOMER")
+    if p.fraud_probability < R1_VERIFY_THRESHOLD and p.weak_evidence:
+        add("VERIFY_WITH_CUSTOMER", "R1: weak evidence below 0.70 requires verification before blocking", target=initial)
         if p.pattern in ("card_testing", "account_takeover", "card_not_present_new_device"):
-            initial.append("STEP_UP_AUTH")
-        rules.append("R1")
-    else:
-        initial.append("BLOCK_CARD")
+            add("STEP_UP_AUTH", "R1: weak evidence requires step-up authentication before blocking", target=initial)
         rules.append("R1")
 
     # ── Final actions (after evidence gathering / customer contact) ────────
 
     # §R3: customer confirms the transaction themselves — close, no fraud
-    if p.customer_confirmed_fraud is False or p.verdict == "legitimate":
-        final.append("CREATE_CASE")
-        final.append("CLOSE_NO_FRAUD")
+    if p.customer_confirmed:
+        add("CREATE_CASE", "§3a: investigation warranted, case opened")
+        add("CLOSE_NO_FRAUD", "R3: customer confirmed the transaction was legitimate")
         rules.append("R3")
-        return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), False, False)
+        return output()
 
     # §R9: undocumented pattern — its own path, doesn't get forced into R2/R5/etc.
-    if p.pattern == "undocumented":
-        final.append("CREATE_CASE")
-        final.append("ESCALATE_TO_ANALYST")
+    if p.pattern == "undocumented" and p.coordinated_abuse_confirmed:
+        add("CREATE_CASE", "§3a: investigation warranted, case opened")
+        add("ESCALATE_TO_ANALYST", "R9: validated coordinated abuse does not fit a documented pattern")
         escalate = True
         rules.append("R9")
-        # §3a: report when coordinated/repeated abuse or exposure exceeds $1,000
-        if p.coordinated_across_customers or p.exposure_usd > 1000:
-            final.append("FILE_REPORT")
-            file_sar = True
-        return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), file_sar, escalate)
+        add("FILE_REPORT", "R9: validated coordinated undocumented abuse requires a report")
+        file_sar = True
+        sar_reasons.append("R9: validated coordinated undocumented abuse requires FILE_REPORT.")
+        return output()
 
     # §R7: disputed but matches the customer's own recurring pattern — never block
-    if p.matches_recurring_charge and p.customer_confirmed_fraud is not False:
-        final.append("CREATE_CASE")
-        final.append("VERIFY_WITH_CUSTOMER")
-        final.append("WARN_CUSTOMER")
+    if p.matches_recurring_charge:
+        add("CREATE_CASE", "§3a: customer dispute warrants a case")
+        add("VERIFY_WITH_CUSTOMER", "R7: charge matches a validated recurring pattern; verify rather than block")
+        add("WARN_CUSTOMER", "R7: validated recurring legitimate-dispute pattern")
         rules.append("R7")
-        return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), False, False)
+        return output()
 
     # ── Confirmed / high-confidence fraud path ──────────────────────────────
-    if p.verdict == "fraud" or p.customer_confirmed_fraud is True or p.fraud_probability >= 0.85:
-        final.append("CREATE_CASE")
-        final.append("BLOCK_CARD")
+    if p.customer_denied:
+        add("CREATE_CASE", "R2: customer denied authorizing the transaction")
+        add("BLOCK_CARD", "R2: customer denial established unauthorized use")
         rules.append("R2")
 
-        # §R2: exposure > $1,000 → file report
-        if p.exposure_usd > 1000:
-            final.append("FILE_REPORT")
+        # §3a/R2: a report needs denial plus high exposure or a validated
+        # shared-origin fact.  Probability alone is never enough.
+        if p.exposure_usd > 1000 or p.shared_origin_confirmed:
+            add("FILE_REPORT", "R2/§3a: customer denial plus high exposure or validated shared origin requires a report")
             file_sar = True
             rules.append("R2-sar")
+            sar_reasons.append("R2/§3a: customer denial plus high exposure or validated shared origin requires FILE_REPORT.")
 
-        # §R5: card testing — decline + step-up; only BLOCK_CARD if a >$100
-        # purchase already cleared (otherwise the decline/step-up is enough)
-        if p.pattern == "card_testing":
-            final.append("DECLINE_TRANSACTION")
-            final.append("STEP_UP_AUTH")
-            if not p.card_testing_cleared_over_100 and "BLOCK_CARD" in final:
-                final.remove("BLOCK_CARD")
-            rules.append("R5")
+    # R5 is established only by the required transaction sequence, never by
+    # an LLM pattern label.
+    if p.card_testing_detected:
+        add("CREATE_CASE", "§3a: card-testing evidence warrants a case")
+        add("DECLINE_TRANSACTION", "R5: validated card-testing sequence")
+        add("STEP_UP_AUTH", "R5: validated card-testing sequence")
+        if p.card_testing_cleared_over_100:
+            add("BLOCK_CARD", "R5: validated card testing included a cleared purchase over $100")
+        rules.append("R5")
 
-        # §R6: shared origin — monitor connected cards, always ends up with a report
-        if p.shared_origin:
-            final.append("MONITOR_CONNECTED_CARDS")
-            if "FILE_REPORT" not in final:
-                final.append("FILE_REPORT")
-                file_sar = True
-            rules.append("R6")
+    # R6 requires a validated common element and confirmed fraud on several
+    # cards, not merely a device-neighbor record.
+    if p.shared_origin_confirmed:
+        add("CREATE_CASE", "R6: validated shared origin across confirmed fraud")
+        add("MONITOR_CONNECTED_CARDS", "R6: validated shared origin across confirmed fraud")
+        add("FILE_REPORT", "R6: validated shared origin across confirmed fraud requires a report")
+        file_sar = True
+        sar_reasons.append("R6: validated shared origin across confirmed fraud requires FILE_REPORT.")
+        rules.append("R6")
 
-        # Account takeover always warrants a report regardless of exposure
-        if p.pattern == "account_takeover" and "FILE_REPORT" not in final:
-            final.append("FILE_REPORT")
-            file_sar = True
+    # R10 is a stricter replacement for an individual-card block.
+    if p.confirmed_compromised_cards >= 2 or p.credentials_confirmed_compromised:
+        if "BLOCK_CARD" in final:
+            final.remove("BLOCK_CARD")
+        add("BLOCK_ALL_CARDS", "R10: two confirmed compromised cards or confirmed credential compromise")
+        rules.append("R10")
 
-        # §R10: BLOCK_ALL_CARDS only with 2+ confirmed cards OR compromised creds
-        if p.n_cards_confirmed >= 2 or p.credentials_confirmed_compromised:
-            if "BLOCK_CARD" in final:
-                final.remove("BLOCK_CARD")
-            final.append("BLOCK_ALL_CARDS")
-            rules.append("R10")
-
-        return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), file_sar, escalate)
+    if final:
+        return output()
 
     # ── Uncertain path ───────────────────────────────────────────────────────
     if p.verdict == "uncertain":
-        final.append("CREATE_CASE")
+        add("CREATE_CASE", "§3a: investigation remains unresolved")
 
         # §R4: no reply within 24h — decline pending auth, monitor
-        if not p.customer_responded:  # asked and no reply (False), or never answered (None)
-            final.append("MONITOR_CARD")
-            final.append("DECLINE_TRANSACTION")
+        # R4 applies only after a customer-validation request was actually made
+        # and the customer did not reply.  `None` means no request was made,
+        # not "no response"; treating the two as equivalent created fictional
+        # R4 outcomes in otherwise evidence-only cases.
+        if p.customer_no_response_24h:
+            add("MONITOR_CARD", "R4: validation request received no response within 24 hours")
+            add("DECLINE_TRANSACTION", "R4: no response within 24 hours for pending authorization")
             rules.append("R4")
 
         # §R8: uncertain and exposure > $500, or evidence conflicts — escalate
         if p.exposure_usd > 500 or p.evidence_conflicts:
-            final.append("ESCALATE_TO_ANALYST")
+            add("ESCALATE_TO_ANALYST", "R8: unresolved high exposure or conflicting validated evidence")
             escalate = True
             rules.append("R8")
 
         # §R6: shared origin even while uncertain — name it, monitor connected
         # cards, and file a report (policy doesn't make this conditional on
         # a confirmed-fraud verdict)
-        if p.shared_origin:
-            final.append("MONITOR_CONNECTED_CARDS")
-            if "FILE_REPORT" not in final:
-                final.append("FILE_REPORT")
-                file_sar = True
-            rules.append("R6")
-
         if len(final) == 1:  # nothing but CREATE_CASE applied — default to monitoring
-            final.append("MONITOR_CARD")
+            add("MONITOR_CARD", "Investigation remains open pending additional evidence")
 
-        return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), file_sar, escalate)
+        return output()
 
     # ── Fallback (shouldn't normally be reached) ────────────────────────────
-    final.append("MONITOR_CARD")
-    return PolicyOutput(deduplicate(initial), deduplicate(final), deduplicate(rules), file_sar, escalate)
+    add("CREATE_CASE", "§3a: investigation warranted, case opened")
+    add("MONITOR_CARD", "Evidence does not establish a deterministic policy predicate")
+    return output()
 
 
 def apply_policy(p: PolicyInput) -> PolicyOutput:
@@ -188,7 +221,57 @@ def apply_policy(p: PolicyInput) -> PolicyOutput:
 
 
 # ── Unit tests ────────────────────────────────────────────────────────────────
+def run_regression_tests() -> None:
+    """Policy-predicate regression coverage; no LLM or graph dependency."""
+    base = dict(
+        verdict="fraud", fraud_probability=0.90, exposure_usd=1500,
+        pattern="card_not_present_fraud", customer_responded=None,
+        customer_confirmed_fraud=None, shared_origin=False, n_cards_confirmed=0,
+        has_prior_fraud=False, channel="online", weak_evidence=True,
+    )
+
+    high_only = apply_policy(PolicyInput(**base))
+    assert not {"R2", "R5", "R6", "R9", "R10"} & set(high_only.rules_applied)
+    assert "BLOCK_CARD" not in high_only.final_actions
+    assert "FILE_REPORT" not in high_only.final_actions
+
+    denied = apply_policy(PolicyInput(**base, customer_denied=True))
+    assert "R2" in denied.rules_applied and "BLOCK_CARD" in denied.final_actions
+    confirmed = apply_policy(PolicyInput(**{**base, "verdict": "legitimate", "fraud_probability": 0.05},
+                                         customer_confirmed=True))
+    assert "R3" in confirmed.rules_applied and "CLOSE_NO_FRAUD" in confirmed.final_actions
+    early_no_reply = apply_policy(PolicyInput(**{**base, "verdict": "uncertain", "fraud_probability": 0.5,
+                                                 "customer_responded": False}))
+    assert "R4" not in early_no_reply.rules_applied
+    no_reply_24h = apply_policy(PolicyInput(**{**base, "verdict": "uncertain", "fraud_probability": 0.5},
+                                             customer_no_response_24h=True))
+    assert "R4" in no_reply_24h.rules_applied
+    testing = apply_policy(PolicyInput(**base, card_testing_detected=True,
+                                       card_testing_cleared_over_100=True))
+    assert "R5" in testing.rules_applied and "BLOCK_CARD" in testing.final_actions
+    shared = apply_policy(PolicyInput(**base, shared_origin_confirmed=True))
+    assert "R6" in shared.rules_applied and "MONITOR_CONNECTED_CARDS" in shared.final_actions
+    recurring = apply_policy(PolicyInput(**base, matches_recurring_charge=True))
+    assert "R7" in recurring.rules_applied and "BLOCK_CARD" not in recurring.final_actions
+    coordinated = apply_policy(PolicyInput(**{**base, "verdict": "uncertain", "fraud_probability": 0.5,
+                                              "pattern": "undocumented"},
+                                            coordinated_abuse_confirmed=True))
+    assert "R9" in coordinated.rules_applied and "FILE_REPORT" in coordinated.final_actions
+    two_cards = apply_policy(PolicyInput(**base, customer_denied=True, confirmed_compromised_cards=2))
+    creds = apply_policy(PolicyInput(**base, customer_denied=True, credentials_confirmed_compromised=True))
+    assert "R10" in two_cards.rules_applied and "BLOCK_ALL_CARDS" in two_cards.final_actions
+    assert "R10" in creds.rules_applied and "BLOCK_ALL_CARDS" in creds.final_actions
+    assert high_only.action_reasons.get("BLOCK_CARD") is None
+    print("✅ 12 deterministic policy-predicate regression tests passed")
+
+
 if __name__ == "__main__":
+    run_regression_tests()
+
+
+# Retained as historical examples; the assertions pre-date fact predicates and
+# are intentionally not executed.  The suite above is the executable contract.
+if __name__ == "__main__" and False:
     print("Running policy engine tests...\n")
 
     # Test 1: High confidence fraud, high exposure
@@ -223,7 +306,7 @@ if __name__ == "__main__":
     p3 = PolicyInput(
         verdict="uncertain", fraud_probability=0.55,
         exposure_usd=800, pattern="out_of_region_use",
-        customer_responded=None, customer_confirmed_fraud=None,
+        customer_responded=False, customer_confirmed_fraud=None,
         shared_origin=False, n_cards_confirmed=0,
         has_prior_fraud=False, channel="in_person"
     )

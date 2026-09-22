@@ -1,45 +1,66 @@
 {
   "case_id": "HHG-005",
   "case": {
-    "status": "open",
-    "verdict": "uncertain",
-    "fraud_probability": 0.38999999999999996,
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.05,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
-    "affected_txn_ids": [
-      "3523199"
-    ],
-    "first_suspicious_txn_id": "3523199",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
     "connected_card_ids": [
-      "C02923-K1"
+      "C02923"
     ],
     "connected_device_profiles": [],
-    "exposure_usd": 100.07,
+    "exposure_usd": 0.0,
     "evidence": [
       {
-        "claim": "The transaction is online and within the customer's usual channels.",
+        "claim": "Flagged transaction 3523199 was online for $100.07; its upstream model risk score was 0.54.",
         "source": "graph",
-        "ref": "query:card_history(C02923)",
+        "ref": "query:get_transaction(txn_id=3523199)",
         "entity_ids": [
-          "C02923",
           "3523199"
         ]
       },
       {
-        "claim": "The transaction amount ($100.07) is below the customer's max transaction amount ($1104.08).",
+        "claim": "Customer C02923 baseline contains 92 transactions, average amount $176.02, maximum amount $1104.08, usual channels ['in_person', 'online'], and usual regions ['324', '299', '330', '272', '126'].",
         "source": "graph",
-        "ref": "query:card_history(C02923)",
-        "entity_ids": [
-          "C02923",
-          "3523199"
-        ]
-      },
-      {
-        "claim": "The region '330' is within the customer's usual regions.",
-        "source": "graph",
-        "ref": "query:card_history(C02923)",
+        "ref": "query:card_baseline(customer_id=C02923)",
         "entity_ids": [
           "C02923"
+        ]
+      },
+      {
+        "claim": "The 72-hour graph window contains 2 transaction(s) with channel(s) ['in_person', 'online'].",
+        "source": "graph",
+        "ref": "query:card_window(customer_id=C02923, hours=72)",
+        "entity_ids": [
+          "3523199",
+          "3532043"
+        ]
+      },
+      {
+        "claim": "Device lookup returned profile 'iOS Device|iOS 9.3.5|mobile safari 9.0|1024x768' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
+        ]
+      },
+      {
+        "claim": "Simulated customer response (not a real customer statement): 'Yes, I made that online transaction.'",
+        "source": "customer",
+        "ref": "simulated_customer_response",
+        "entity_ids": [
+          "3523199"
         ]
       }
     ],
@@ -48,7 +69,7 @@
       "CC-5557",
       "CC-5553"
     ],
-    "summary": "The transaction is flagged with a moderate risk score of 0.54. It's an online transaction for $100.07, within the customer's usual behavior but requires verification.",
+    "summary": "Transaction 3523199 ($100.07, online) was investigated after an upstream risk score of 0.54. Customer validation confirmed the transaction was legitimate. Final assessment: legitimate (P=0.05), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, CLOSE_NO_FRAUD.",
     "written_to_graph": true,
     "graph_case_id": "HHG-005"
   },
@@ -56,7 +77,7 @@
     {
       "type": "customer_validation",
       "asked_after_step": 6,
-      "assumed_response": "I confirm this transaction was legitimate."
+      "assumed_response": "Yes, I made that online transaction."
     }
   ],
   "next_best_actions": {
@@ -64,33 +85,44 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "§3a: investigation warranted, case opened"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
         "action": "VERIFY_WITH_CUSTOMER",
         "route": "auto",
-        "reason": "R1: probability < 0.70, verify before blocking"
+        "reason": "R1: weak evidence below 0.70 requires verification before blocking"
       }
     ],
     "final": [
       {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: investigation warranted, case opened"
+      },
+      {
         "action": "CLOSE_NO_FRAUD",
         "route": "auto",
-        "reason": "R3: customer confirmed legitimate"
+        "reason": "R3: customer confirmed the transaction was legitimate"
       }
     ],
-    "what_changed": "Customer response: 'I confirm this transaction was legitimate.'. Added: CLOSE_NO_FRAUD. Removed: CREATE_CASE, VERIFY_WITH_CUSTOMER."
+    "what_changed": "Customer validation confirmed the transaction was legitimate; final actions reflect the settled case outcome."
   },
   "sar": {
     "file": false,
-    "reason": "Exposure $100.07 below threshold or verdict not confirmed fraud",
+    "reason": "R3: customer confirmation established a legitimate transaction; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Awaiting customer response for verification.",
-  "tool_calls": 9,
-  "tokens": 28838,
-  "latency_s": 83.0
+  "stop_reason": "Customer validation confirmed the transaction was legitimate; the case is closed under R3.",
+  "tool_calls": 13,
+  "tokens": 5444,
+  "latency_s": 17.6,
+  "qa": {
+    "reviewer_severity": "none",
+    "reviewer_issue_count": 0,
+    "validator_correction_count": 0,
+    "clean": true
+  }
 }

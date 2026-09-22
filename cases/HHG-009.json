@@ -3,50 +3,91 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.4,
+    "fraud_probability": 0.55,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
-      "3581141"
+      "3576079",
+      "3581141",
+      "3586980",
+      "3587042",
+      "3587043",
+      "3588859",
+      "3588874",
+      "3588876",
+      "3588905",
+      "3588919",
+      "3588950"
     ],
-    "first_suspicious_txn_id": "3581141",
+    "first_suspicious_txn_id": "3576079",
     "connected_card_ids": [
-      "C08299-K1"
+      "C08299"
     ],
     "connected_device_profiles": [],
-    "exposure_usd": 30.02,
+    "exposure_usd": 470.26,
     "evidence": [
       {
-        "claim": "Customer C08299 disputed a transaction of $30.02 with ID 3581141 made online.",
-        "source": "customer",
-        "ref": "customer report",
+        "claim": "Flagged transaction 3581141 was online for $30.02; its upstream model risk score was 0.50.",
+        "source": "graph",
+        "ref": "query:get_transaction(txn_id=3581141)",
         "entity_ids": [
-          "C08299",
           "3581141"
         ]
       },
       {
-        "claim": "The transaction was made in region '203', which is within the customer's usual regions.",
+        "claim": "Customer C08299 baseline contains 56 transactions, average amount $61.17, maximum amount $343.94, usual channels ['in_person', 'online'], and usual regions ['330', '441', '184', '204', '337', '203', '325'].",
         "source": "graph",
-        "ref": "transaction_history",
-        "entity_ids": [
-          "C08299",
-          "3581141"
-        ]
-      },
-      {
-        "claim": "The customer's average transaction amount is $61.17, and the maximum is $343.94.",
-        "source": "graph",
-        "ref": "customer_history",
+        "ref": "query:card_baseline(customer_id=C08299)",
         "entity_ids": [
           "C08299"
+        ]
+      },
+      {
+        "claim": "The 72-hour graph window contains 11 transaction(s) with channel(s) ['online'].",
+        "source": "graph",
+        "ref": "query:card_window(customer_id=C08299, hours=72)",
+        "entity_ids": [
+          "3576079",
+          "3581141",
+          "3586980",
+          "3587042",
+          "3587043",
+          "3588859",
+          "3588874",
+          "3588876"
+        ]
+      },
+      {
+        "claim": "Device lookup returned profile 'unknown|unknown|unknown|unknown' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
+        ]
+      },
+      {
+        "claim": "Customer-reported statement: 'I never made this $30.02 purchase. Please check my card.'",
+        "source": "customer",
+        "ref": "trigger_customer_report",
+        "entity_ids": [
+          "3581141"
         ]
       }
     ],
     "similar_prior_cases": [
-      "CC-5558"
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
     ],
-    "summary": "Customer C08299 reported a suspicious transaction of $30.02 with ID 3581141. The transaction was made online in region '203'. Given the customer's history and the transaction details, the fraud probability is assessed.",
+    "summary": "Transaction 3581141 ($30.02, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.55), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
     "written_to_graph": true,
     "graph_case_id": "HHG-009"
   },
@@ -56,33 +97,44 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "VERIFY_WITH_CUSTOMER",
-        "route": "auto",
-        "reason": "R1: probability < 0.85, verify before blocking"
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "Deterministic policy reason required for BLOCK_CARD"
       }
     ],
     "final": [
       {
-        "action": "MONITOR_CARD",
+        "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R4: no customer reply within 24h"
+        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: customer denial established unauthorized use"
       }
     ],
-    "what_changed": "nothing"
+    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
   },
   "sar": {
     "file": false,
-    "reason": "Exposure $30.02 below threshold or verdict not confirmed fraud",
+    "reason": "Rule(s) R1, R2 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Awaiting customer response.",
-  "tool_calls": 8,
-  "tokens": 24896,
-  "latency_s": 32.4
+  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "tool_calls": 13,
+  "tokens": 5394,
+  "latency_s": 17.7,
+  "qa": {
+    "reviewer_severity": "warning",
+    "reviewer_issue_count": 2,
+    "validator_correction_count": 0,
+    "clean": false
+  }
 }

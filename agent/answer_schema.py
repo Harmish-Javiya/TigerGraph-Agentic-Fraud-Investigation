@@ -171,6 +171,26 @@ class Case(BaseModel):
         return self
 
 
+# ── QA summary (descriptive audit metadata, not a policy fact) ────────────────
+
+class QASummary(BaseModel):
+    """Records what the LLM #2 reviewer and deterministic final validator found.
+
+    This is NOT a fraud-classification accuracy score — the benchmark has no
+    ground-truth labels, so no such score can be computed honestly. It only
+    reports whether this specific case needed a correction, so an analyst or
+    dashboard can see which cases came out clean on the first pass versus
+    which ones the deterministic validator had to fix.
+    """
+    reviewer_severity: str = Field(default="none", description="none | warning | critical")
+    reviewer_issue_count: int = Field(default=0)
+    validator_correction_count: int = Field(default=0)
+    clean: bool = Field(
+        default=True,
+        description="True only if the reviewer raised nothing and the validator made no corrections."
+    )
+
+
 # ── Full Answer ───────────────────────────────────────────────────────────────
 
 class CaseAnswer(BaseModel):
@@ -183,6 +203,7 @@ class CaseAnswer(BaseModel):
     tool_calls: int = Field(default=0)
     tokens: int = Field(default=0)
     latency_s: float = Field(default=0.0)
+    qa: QASummary = Field(default_factory=QASummary)
 
     @model_validator(mode="after")
     def sar_consistent_with_actions(self):
@@ -231,13 +252,13 @@ def get_rule(action: str, context: dict) -> str:
     rules = {
         "ALLOW_TRANSACTION": "Default — no rule triggered, transaction allowed",
         "VERIFY_WITH_CUSTOMER": "R1: probability < 0.70, verify before blocking",
-        "BLOCK_CARD": "R2/R5: confirmed unauthorized use",
+        "BLOCK_CARD": "Deterministic policy reason required for BLOCK_CARD",
         "CLOSE_NO_FRAUD": "R3: customer confirmed legitimate",
         "MONITOR_CARD": "R4: no customer reply within 24h",
         "DECLINE_TRANSACTION": "R4/R5: high risk transaction pending or card testing",
         "STEP_UP_AUTH": "R1/R5: verification signal or card testing pattern detected",
         "MONITOR_CONNECTED_CARDS": "R6: shared device/region origin",
-        "FILE_REPORT": "R2/R6/R9: confirmed fraud with shared origin, high exposure, or undocumented coordinated abuse",
+        "FILE_REPORT": "Deterministic policy reason required for FILE_REPORT",
         "GENERATE_REPORT": "Internal record only — no case opened",
         "WARN_CUSTOMER": "R7: disputed but matches recurring pattern",
         "ESCALATE_TO_ANALYST": "R8/R9: uncertain with high exposure/conflicting evidence, or undocumented pattern",

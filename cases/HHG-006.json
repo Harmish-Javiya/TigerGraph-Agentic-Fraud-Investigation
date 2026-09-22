@@ -3,51 +3,84 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.6,
+    "fraud_probability": 0.55,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
+      "3476602",
+      "3476633",
+      "3476665",
       "3476682"
     ],
-    "first_suspicious_txn_id": "3476682",
+    "first_suspicious_txn_id": "3476602",
     "connected_card_ids": [
-      "C07297-K1"
+      "C07297"
     ],
     "connected_device_profiles": [],
-    "exposure_usd": 482.12,
+    "exposure_usd": 1906.07,
     "evidence": [
       {
-        "claim": "The customer C07297 reported that they did not make a $482.12 purchase with transaction ID 3476682.",
-        "source": "customer",
-        "ref": "customer message",
-        "entity_ids": [
-          "C07297",
-          "3476682"
-        ]
-      },
-      {
-        "claim": "The transaction was made online, which aligns with the 'Card Not Present Fraud' pattern.",
+        "claim": "Flagged transaction 3476682 was online for $482.12; its upstream model risk score was 0.50.",
         "source": "graph",
-        "ref": "transaction details",
+        "ref": "query:get_transaction(txn_id=3476682)",
         "entity_ids": [
           "3476682"
         ]
       },
       {
-        "claim": "The customer's baseline shows usual channels including 'in_person' and 'online', but this transaction is isolated (D1=0) and has a single count (C1=1).",
+        "claim": "Customer C07297 baseline contains 261 transactions, average amount $112.56, maximum amount $1104.00, usual channels ['in_person', 'online'], and usual regions ['231', '143', '184', '194', '337', '191', '324', '512', '253', '181', '204', '492', '251', '476', '315', '441', '205', '158', '343', '299', '436', '272', '264', '428', '387', '469', '203', '485', '444', '170', '330', '310', '433', '269', '177', '472', '325'].",
         "source": "graph",
-        "ref": "customer baseline",
+        "ref": "query:card_baseline(customer_id=C07297)",
         "entity_ids": [
           "C07297"
+        ]
+      },
+      {
+        "claim": "The 72-hour graph window contains 9 transaction(s) with channel(s) ['in_person', 'online'].",
+        "source": "graph",
+        "ref": "query:card_window(customer_id=C07297, hours=72)",
+        "entity_ids": [
+          "3473012",
+          "3474057",
+          "3476602",
+          "3476633",
+          "3476665",
+          "3476682",
+          "3477578",
+          "3478191"
+        ]
+      },
+      {
+        "claim": "Device lookup returned profile 'Trident/7.0|Windows 7|ie 11.0 for desktop|1920x1080' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
+        ]
+      },
+      {
+        "claim": "Customer-reported statement: 'I never made this $482.12 purchase. Please check my card.'",
+        "source": "customer",
+        "ref": "trigger_customer_report",
+        "entity_ids": [
+          "3476682"
         ]
       }
     ],
     "similar_prior_cases": [
-      "CC-2825",
-      "CC-4356",
-      "CC-0588"
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
     ],
-    "summary": "The customer denies making a $482.12 online purchase. The transaction is isolated and online, fitting the 'Card Not Present Fraud' pattern. The customer has a history of various transactions but no recent suspicious activity.",
+    "summary": "Transaction 3476682 ($482.12, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.55), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD, FILE_REPORT.",
     "written_to_graph": true,
     "graph_case_id": "HHG-006"
   },
@@ -57,33 +90,60 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "VERIFY_WITH_CUSTOMER",
-        "route": "auto",
-        "reason": "R1: probability < 0.85, verify before blocking"
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "Deterministic policy reason required for BLOCK_CARD"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "Deterministic policy reason required for FILE_REPORT"
       }
     ],
     "final": [
       {
-        "action": "MONITOR_CARD",
+        "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R4: no customer reply within 24h"
+        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: customer denial established unauthorized use"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R2/§3a: customer denial plus high exposure or validated shared origin requires a report"
       }
     ],
-    "what_changed": "nothing"
+    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
   },
   "sar": {
-    "file": false,
-    "reason": "Exposure $482.12 below threshold or verdict not confirmed fraud",
-    "narrative": "",
-    "subjects": [],
-    "total_amount_usd": 0.0,
-    "activity_dates": []
+    "file": true,
+    "reason": "R2/§3a: customer denial plus high exposure or validated shared origin requires FILE_REPORT.",
+    "narrative": "This report concerns customer C07297 and card C07297-K1. On 2016-11-22, transaction 3476682 was recorded through the online channel for $482.12. The investigation assessed the activity as card_not_present_fraud with fraud probability 0.55. The customer denied authorizing the activity when contacted. A shared device profile links this activity to card(s) C07297. Similar closed case(s) CC-5558 were referenced as case-memory context. The identified suspicious exposure is $1906.07. The institution recommends CREATE_CASE, BLOCK_CARD, FILE_REPORT under the applicable fraud policy approval routes.",
+    "subjects": [
+      "C07297",
+      "C07297-K1"
+    ],
+    "total_amount_usd": 1906.07,
+    "activity_dates": [
+      "2016-11-21",
+      "2016-11-21"
+    ]
   },
-  "stop_reason": "Awaiting customer response to verify transaction legitimacy.",
-  "tool_calls": 8,
-  "tokens": 15437,
-  "latency_s": 104.0
+  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "tool_calls": 13,
+  "tokens": 5769,
+  "latency_s": 16.3,
+  "qa": {
+    "reviewer_severity": "critical",
+    "reviewer_issue_count": 2,
+    "validator_correction_count": 1,
+    "clean": false
+  }
 }

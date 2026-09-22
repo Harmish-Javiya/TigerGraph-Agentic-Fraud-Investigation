@@ -3,7 +3,7 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.5,
+    "fraud_probability": 0.75,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -11,43 +11,66 @@
     ],
     "first_suspicious_txn_id": "3534820",
     "connected_card_ids": [
-      "C09988",
-      "C09988-K1"
+      "C09988"
     ],
     "connected_device_profiles": [],
     "exposure_usd": 59.67,
     "evidence": [
       {
-        "claim": "Customer C09988 reported an unrecognized $59.67 online purchase on card C09988-K1, which exceeds the customer's average transaction amount of $41.81 by 43%.",
+        "claim": "Flagged transaction 3534820 was online for $59.67; its upstream model risk score was 0.50.",
         "source": "graph",
-        "ref": "query:customer_message(C09988)",
-        "entity_ids": [
-          "C09988",
-          "C09988-K1",
-          "3534820"
-        ]
-      },
-      {
-        "claim": "Transaction 3534820 was executed via the online channel with a risk score of 0.37, matching the Card Not Present fraud pattern criteria (online, unusual merchant, elevated C1).",
-        "source": "graph",
-        "ref": "query:transaction_details(3534820)",
+        "ref": "query:get_transaction(txn_id=3534820)",
         "entity_ids": [
           "3534820"
         ]
       },
       {
-        "claim": "Policy document for Card Not Present fraud recommends VERIFY_WITH_CUSTOMER (R1) when risk_score > 0.6; although this transaction's score is 0.37, the customer dispute and elevated C1 (9 transactions) raise concern.",
-        "source": "document",
-        "ref": "policy:card_not_present_fraud",
+        "claim": "Customer C09988 baseline contains 61 transactions, average amount $41.81, maximum amount $134.97, usual channels ['online'], and usual regions ['382', '100'].",
+        "source": "graph",
+        "ref": "query:card_baseline(customer_id=C09988)",
+        "entity_ids": [
+          "C09988"
+        ]
+      },
+      {
+        "claim": "The 72-hour graph window contains 1 transaction(s) with channel(s) ['online'].",
+        "source": "graph",
+        "ref": "query:card_window(customer_id=C09988, hours=72)",
+        "entity_ids": [
+          "3534820"
+        ]
+      },
+      {
+        "claim": "Device lookup returned profile 'Windows|unknown|edge 16.0|unknown' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
         "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
+        ]
+      },
+      {
+        "claim": "Customer-reported statement: 'I never made this $59.67 purchase. Please check my card.'",
+        "source": "customer",
+        "ref": "trigger_customer_report",
+        "entity_ids": [
+          "3534820"
+        ]
       }
     ],
     "similar_prior_cases": [
       "CC-5558",
-      "CC-2825",
-      "CC-4495"
+      "CC-5557",
+      "CC-5553"
     ],
-    "summary": "Customer C09988 disputes a $59.67 online transaction on 2016-12-11. The transaction aligns with Card Not Present fraud characteristics and has a moderate risk score (0.37). The amount is 1.43× the customer's average spend, and the customer has flagged it as unauthorized, prompting further verification.",
+    "summary": "Transaction 3534820 ($59.67, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.75), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
     "written_to_graph": true,
     "graph_case_id": "HHG-016"
   },
@@ -57,33 +80,44 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "VERIFY_WITH_CUSTOMER",
-        "route": "auto",
-        "reason": "R1: probability < 0.85, verify before blocking"
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "Deterministic policy reason required for BLOCK_CARD"
       }
     ],
     "final": [
       {
-        "action": "MONITOR_CARD",
+        "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R4: no customer reply within 24h"
+        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: customer denial established unauthorized use"
       }
     ],
-    "what_changed": "nothing"
+    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
   },
   "sar": {
     "file": false,
-    "reason": "Exposure $59.67 below threshold or verdict not confirmed fraud",
+    "reason": "Rule(s) R2 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Investigation paused pending the cardholder's confirmation of the disputed transaction.",
-  "tool_calls": 7,
-  "tokens": 11344,
-  "latency_s": 26.3
+  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "tool_calls": 12,
+  "tokens": 4920,
+  "latency_s": 16.9,
+  "qa": {
+    "reviewer_severity": "warning",
+    "reviewer_issue_count": 1,
+    "validator_correction_count": 0,
+    "clean": false
+  }
 }

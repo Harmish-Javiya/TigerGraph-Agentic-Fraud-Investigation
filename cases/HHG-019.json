@@ -1,5 +1,5 @@
 {
-  "case_id": "HHG-002",
+  "case_id": "HHG-019",
   "case": {
     "status": "closed_fraud",
     "verdict": "fraud",
@@ -7,38 +7,47 @@
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
-      "3478782"
+      "3503878"
     ],
-    "first_suspicious_txn_id": "3478782",
-    "connected_card_ids": [
-      "C11891"
-    ],
+    "first_suspicious_txn_id": "3503878",
+    "connected_card_ids": [],
     "connected_device_profiles": [],
-    "exposure_usd": 292.36,
+    "exposure_usd": 99.92,
     "evidence": [
       {
-        "claim": "Flagged transaction 3478782 was online for $292.36; its upstream model risk score was 0.79.",
+        "claim": "Flagged transaction 3503878 was online for $99.92; its upstream model risk score was 0.90.",
         "source": "graph",
-        "ref": "query:get_transaction(txn_id=3478782)",
+        "ref": "query:get_transaction(txn_id=3503878)",
         "entity_ids": [
-          "3478782"
+          "3503878"
         ]
       },
       {
-        "claim": "Customer C11891 baseline contains 44 transactions, average amount $47.46, maximum amount $292.36, usual channels ['online'], and usual regions ['375'].",
+        "claim": "Customer C07987 baseline contains 248 transactions, average amount $199.23, maximum amount $1586.94, usual channels ['online', 'in_person'], and usual regions ['184', '327', '512', '441', '330', '472', '299', '387', '498', '123', '264', '143', '225', '310', '384', '204', '448', '337', '226', '315', '181', '158', '205', '126', '325', '436', '269', '170', '231', '428', '272', '122', '420'].",
         "source": "graph",
-        "ref": "query:card_baseline(customer_id=C11891)",
+        "ref": "query:card_baseline(customer_id=C07987)",
         "entity_ids": [
-          "C11891"
+          "C07987"
         ]
       },
       {
-        "claim": "The 72-hour graph window contains 1 transaction(s) with channel(s) ['online'].",
+        "claim": "The 72-hour graph window contains 6 transaction(s) with channel(s) ['in_person', 'online'].",
         "source": "graph",
-        "ref": "query:card_window(customer_id=C11891, hours=72)",
+        "ref": "query:card_window(customer_id=C07987, hours=72)",
         "entity_ids": [
-          "3478782"
+          "3499109",
+          "3503878",
+          "3507926",
+          "3508124",
+          "3511673",
+          "3512695"
         ]
+      },
+      {
+        "claim": "Device lookup returned profile 'Windows|other|chrome 61.0|1280x720' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
       },
       {
         "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
@@ -55,7 +64,7 @@
         "source": "customer",
         "ref": "simulated_customer_response",
         "entity_ids": [
-          "3478782"
+          "3503878"
         ]
       }
     ],
@@ -64,14 +73,14 @@
       "CC-5557",
       "CC-5553"
     ],
-    "summary": "Transaction 3478782 ($292.36, online) was investigated after an upstream risk score of 0.79. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "summary": "Transaction 3503878 ($99.92, online) was investigated after an upstream risk score of 0.90. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
     "written_to_graph": true,
-    "graph_case_id": "HHG-002"
+    "graph_case_id": "HHG-019"
   },
   "evidence_requests": [
     {
       "type": "customer_validation",
-      "asked_after_step": 5,
+      "asked_after_step": 10,
       "assumed_response": "No, I did not authorize this transaction. Please block my card immediately!"
     }
   ],
@@ -111,13 +120,13 @@
     "activity_dates": []
   },
   "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
-  "tool_calls": 11,
-  "tokens": 5329,
-  "latency_s": 19.9,
+  "tool_calls": 13,
+  "tokens": 5757,
+  "latency_s": 55.9,
   "qa": {
-    "reviewer_severity": "none",
-    "reviewer_issue_count": 0,
+    "reviewer_severity": "warning",
+    "reviewer_issue_count": 1,
     "validator_correction_count": 0,
-    "clean": true
+    "clean": false
   }
 }

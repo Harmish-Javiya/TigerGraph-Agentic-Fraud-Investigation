@@ -1,0 +1,45 @@
+/*
+  Investigation audit trail for the TigerGraph fraud_investigation graph.
+
+  Run this file in GSQL after the base schema has been created.  It adds an
+  append-only event stream to every InvestigationCase.  The Python agent calls
+  write_investigation_event three times per investigation: evidence,
+  recommendations, and final decision.
+*/
+
+USE GRAPH fraud_investigation
+
+CREATE SCHEMA_CHANGE JOB add_investigation_lifecycle FOR GRAPH fraud_investigation {
+  ADD VERTEX InvestigationEvent (
+    PRIMARY_ID event_id STRING,
+    case_id STRING,
+    event_type STRING,
+    payload STRING,
+    created_at STRING
+  ) WITH primary_id_as_attribute="true";
+
+  ADD DIRECTED EDGE HAS_EVENT (
+    FROM InvestigationCase,
+    TO InvestigationEvent
+  );
+}
+RUN SCHEMA_CHANGE JOB add_investigation_lifecycle
+
+CREATE QUERY write_investigation_event(
+  STRING case_id,
+  STRING event_id,
+  STRING event_type,
+  STRING payload,
+  STRING created_at
+) FOR GRAPH fraud_investigation {
+  INSERT INTO InvestigationEvent VALUES (
+    event_id,
+    case_id,
+    event_type,
+    payload,
+    created_at
+  );
+  INSERT INTO HAS_EVENT VALUES (case_id, event_id);
+}
+
+INSTALL QUERY write_investigation_event

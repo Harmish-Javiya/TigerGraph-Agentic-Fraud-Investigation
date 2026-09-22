@@ -1,5 +1,5 @@
 """
-Provider chain: local Qwen3 -> Gemini Flash -> Groq Llama.
+Provider chain: Gemini Flash -> local Qwen3 -> Groq.
 Falls through on quota errors, connection errors, or invalid output.
 """
 import os
@@ -30,7 +30,7 @@ PROVIDERS = [
         "name": "groq",
         "client": OpenAI(base_url="https://api.groq.com/openai/v1",
                          api_key=os.getenv("GROQ_API_KEY", "missing"), timeout=60),
-        "model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         "no_think": False,
     },
 ]

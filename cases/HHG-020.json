@@ -1,74 +1,82 @@
 {
-  "case_id": "HHG-001",
+  "case_id": "HHG-020",
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.5,
-    "pattern": "none",
+    "fraud_probability": 0.57,
+    "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
-      "3514030"
+      "3509359"
     ],
-    "first_suspicious_txn_id": "3514030",
-    "connected_card_ids": [],
+    "first_suspicious_txn_id": "3509359",
+    "connected_card_ids": [
+      "C12265"
+    ],
     "connected_device_profiles": [],
-    "exposure_usd": 77.07,
+    "exposure_usd": 125.08,
     "evidence": [
       {
-        "claim": "Flagged transaction 3514030 was in_person for $77.07; its upstream model risk score was 0.61.",
+        "claim": "Flagged transaction 3509359 was online for $125.08; its upstream model risk score was 0.52.",
         "source": "graph",
-        "ref": "query:get_transaction(txn_id=3514030)",
+        "ref": "query:get_transaction(txn_id=3509359)",
         "entity_ids": [
-          "3514030"
+          "3509359"
         ]
       },
       {
-        "claim": "Customer C12382 baseline contains 422 transactions, average amount $115.60, maximum amount $845.01, usual channels ['in_person', 'online'], and usual regions ['231', '204', '122', '315', '299', '324', '177', '444', '485', '203', '191', '337', '226', '498', '310', '433', '308', '472', '123', '441', '205', '272', '436', '325', '512', '220', '126', '184', '143', '225', '476', '330', '181', '327', '110', '420', '428', '387', '264', '469'].",
+        "claim": "Customer C12265 baseline contains 112 transactions, average amount $193.01, maximum amount $1960.95, usual channels ['in_person', 'online'], and usual regions ['264'].",
         "source": "graph",
-        "ref": "query:card_baseline(customer_id=C12382)",
+        "ref": "query:card_baseline(customer_id=C12265)",
         "entity_ids": [
-          "C12382"
+          "C12265"
         ]
       },
       {
-        "claim": "The 72-hour graph window contains 20 transaction(s) with channel(s) ['in_person'].",
+        "claim": "The 72-hour graph window contains 8 transaction(s) with channel(s) ['in_person', 'online'].",
         "source": "graph",
-        "ref": "query:card_window(customer_id=C12382, hours=72)",
+        "ref": "query:card_window(customer_id=C12265, hours=72)",
         "entity_ids": [
-          "3510115",
-          "3510225",
-          "3510464",
-          "3510612",
-          "3511596",
-          "3512936",
-          "3513814",
-          "3514030"
+          "3501882",
+          "3501890",
+          "3509359",
+          "3510096",
+          "3510577",
+          "3511725",
+          "3514532",
+          "3517402"
         ]
+      },
+      {
+        "claim": "Device lookup returned profile 'Trident/7.0|Windows 10|ie 11.0 for desktop|1920x1080' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
       },
       {
         "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
         "source": "graph",
         "ref": "query:similar_closed_cases",
         "entity_ids": [
-          "CC-5537",
-          "CC-5525",
-          "CC-5504"
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
         ]
       }
     ],
     "similar_prior_cases": [
-      "CC-5537",
-      "CC-5525",
-      "CC-5504"
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
     ],
-    "summary": "Transaction 3514030 ($77.07, in_person) was investigated after an upstream risk score of 0.61. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.50), pattern none. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
+    "summary": "Transaction 3509359 ($125.08, online) was investigated after an upstream risk score of 0.52. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.57), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
     "written_to_graph": true,
-    "graph_case_id": "HHG-001"
+    "graph_case_id": "HHG-020"
   },
   "evidence_requests": [
     {
       "type": "customer_validation",
-      "asked_after_step": 24,
+      "asked_after_step": 12,
       "assumed_response": "No response within 24 hours"
     }
   ],
@@ -113,12 +121,12 @@
     "activity_dates": []
   },
   "stop_reason": "Customer validation received no response within 24 hours; the case remains open and actions follow R4.",
-  "tool_calls": 12,
-  "tokens": 5614,
-  "latency_s": 197.2,
+  "tool_calls": 13,
+  "tokens": 5664,
+  "latency_s": 17.7,
   "qa": {
     "reviewer_severity": "critical",
-    "reviewer_issue_count": 8,
+    "reviewer_issue_count": 1,
     "validator_correction_count": 1,
     "clean": false
   }

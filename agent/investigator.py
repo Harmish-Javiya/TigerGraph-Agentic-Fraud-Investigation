@@ -6,23 +6,24 @@ Aligned against Fraud Policy v1.0.
 import os
 import json
 import time
-from groq import Groq
+import copy
+import re
+from datetime import datetime
 from dotenv import load_dotenv
 
 import graph_client as gc
+from llm_router import chat as routed_chat
 from policy_engine import PolicyInput, apply_policy, R1_VERIFY_THRESHOLD
 from graphrag import guess_pattern
 from answer_schema import (
     CaseAnswer, Case, SAR, NextBestActions,
     EvidenceItem, EvidenceRequest, ActionItem,
     CaseStatus, Verdict, EvidenceSource, ActionRoute,
+    QASummary,
     get_route, get_rule
 )
 
 load_dotenv()
-
-groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
-MODEL = "groq/compound"
 
 # §6 Stopping rule: stop once probability clears these bounds with enough evidence
 STOP_HIGH = 0.85
@@ -34,35 +35,25 @@ _tokens = 0  # LLM tokens are still tracked here — gc.TOOL_CALLS handles tool 
 # ── LLM helpers ───────────────────────────────────────────────────────────────
 
 def llm(prompt: str, system: str = "") -> str:
-    global _tokens
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    """Call the configured provider chain and track the returned usage.
 
-    for attempt in range(5):
-        try:
-            response = groq.chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                temperature=0.1,
-                max_tokens=2000
-            )
-            _tokens += response.usage.total_tokens if response.usage else 0
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            if "rate_limit" in str(e).lower() or "429" in str(e):
-                wait = 30 * (attempt + 1)
-                print(f"  [RATE LIMIT] Waiting {wait}s...")
-                time.sleep(wait)
-            else:
-                raise
-    raise RuntimeError("Max retries exceeded")
+    Provider order is defined centrally in llm_router.py: Gemini, local Ollama,
+    then Groq. This avoids pinning the investigation workflow to deprecated
+    `groq/compound` and lets one unavailable provider fail over safely.
+    """
+    global _tokens
+    text, used = routed_chat(prompt, system=system, max_tokens=2000)
+    _tokens += used
+    return text
 
 
 def llm_json(prompt: str, system: str = "") -> dict:
     full_system = (system or "") + "\nRespond ONLY with valid JSON. No markdown, no preamble."
-    raw = llm(prompt, full_system)
+    # Ask the router to validate JSON before returning. The local parsing below
+    # still produces the object used by the investigation code.
+    global _tokens
+    raw, used = routed_chat(prompt, system=full_system, json_mode=True, max_tokens=2000)
+    _tokens += used
     raw = raw.strip()
     if raw.startswith("```"):
         parts = raw.split("```")
@@ -74,6 +65,26 @@ def llm_json(prompt: str, system: str = "") -> dict:
 
 # ── Graph evidence gathering ──────────────────────────────────────────────────
 
+def _only_dicts(records: list, label: str) -> list:
+    """Graph client functions are documented to return lists of attribute
+    dicts (e.g. device_neighbors' docstring: "[t["attributes"] for t in
+    results[0]["Txns"]]"), but an installed GSQL query can return a
+    differently-shaped payload for some records (e.g. a bare vertex ID string
+    instead of an attribute map) without graph_client.py itself raising an
+    error. Every consumer here assumes dicts and calls .get()/[...] on each
+    entry, so a single non-dict record crashes the whole investigation
+    (AttributeError: 'str' object has no attribute 'get'). Filter those out
+    here, once, with a warning, instead of crashing per case.
+    """
+    clean = [r for r in records if isinstance(r, dict)]
+    if len(clean) != len(records):
+        print(
+            f"  [WARN] {label}: dropped {len(records) - len(clean)} non-dict "
+            f"record(s) returned by the graph query (unexpected shape)."
+        )
+    return clean
+
+
 def gather_evidence(case: dict, txn: dict) -> dict:
     customer_id = case["customer_id"]
     opened_at = case["opened_at"]
@@ -82,15 +93,17 @@ def gather_evidence(case: dict, txn: dict) -> dict:
     baseline = gc.card_baseline(customer_id)
 
     print(f"  [2/6] 72h window...")
-    window = gc.card_window(customer_id, opened_at, 72)
+    window = _only_dicts(gc.card_window(customer_id, opened_at, 72), "card_window")
 
     print(f"  [3/6] Customer cards...")
-    cards = gc.customer_cards(customer_id)
+    cards = _only_dicts(gc.customer_cards(customer_id), "customer_cards")
 
     print(f"  [4/6] Similar closed cases...")
     likely_pattern = guess_pattern(txn, baseline)
     similar = gc.similar_closed_cases(likely_pattern, customer_id)
     similar_dict = similar if isinstance(similar, dict) else {}
+    similar_dict["by_pattern"] = _only_dicts(similar_dict.get("by_pattern", []), "similar_closed_cases.by_pattern")
+    similar_dict["by_customer"] = _only_dicts(similar_dict.get("by_customer", []), "similar_closed_cases.by_customer")
     baseline["has_prior_fraud"] = any(
         cc.get("outcome") == "confirmed_fraud"
         for cc in similar_dict.get("by_customer", [])
@@ -100,7 +113,7 @@ def gather_evidence(case: dict, txn: dict) -> dict:
     region = []
     if txn.get("addr1"):
         try:
-            region = gc.region_neighbors(str(int(float(txn["addr1"]))), opened_at, 7)
+            region = _only_dicts(gc.region_neighbors(str(int(float(txn["addr1"]))), opened_at, 7), "region_neighbors")
         except Exception:
             pass
 
@@ -109,7 +122,7 @@ def gather_evidence(case: dict, txn: dict) -> dict:
     device_txns = []
     if device_key:
         try:
-            device_txns = gc.device_neighbors(device_key, opened_at, 30)
+            device_txns = _only_dicts(gc.device_neighbors(device_key, opened_at, 30), "device_neighbors")
         except Exception as e:
             print(f"  [WARN] device_neighbors failed: {e}")
 
@@ -136,7 +149,7 @@ def gather_evidence(case: dict, txn: dict) -> dict:
         "history": [],
         "window": window,
         "cards": cards,
-        "similar_cases": similar,
+        "similar_cases": similar_dict,
         "region_neighbors": region,
         "device_data": device_data,
         "baseline": baseline,
@@ -246,21 +259,10 @@ def ground_shared_origin(analysis: dict, bundle: dict) -> dict:
     device_cards = device_data.get("cards", [])
     device_key = device_data.get("device_key", "")
 
-    if device_cards:
-        analysis["shared_origin"] = True
-        existing_cards = set(str(x) for x in analysis.get("connected_card_ids", []))
-        analysis["connected_card_ids"] = sorted(existing_cards | set(device_cards))
-        if device_key:
-            existing_profiles = set(analysis.get("connected_device_profiles", []))
-            existing_profiles.add(device_key)
-            analysis["connected_device_profiles"] = sorted(existing_profiles)
-
-        current_p = analysis.get("fraud_probability", 0.0)
-        if current_p < STOP_HIGH:
-            analysis["fraud_probability"] = round(min(0.95, current_p + 0.15), 2)
-            if analysis["fraud_probability"] >= STOP_HIGH:
-                analysis["verdict"] = "fraud"
-
+    # A shared device observation is lead evidence, not a confirmed shared
+    # fraud origin.  The actual R6 predicate is derived later from explicit
+    # confirmed-fraud records.  Do not let a neighbor count alter probability,
+    # connected-card IDs, or policy actions here.
     return analysis
 
 
@@ -393,6 +395,132 @@ def compute_matches_recurring_charge(txn: dict, baseline: dict) -> bool:
     return bool(avg) and abs(amount - avg) <= 5 and channel in usual_channels
 
 
+def _confirmed_fraud_record(record: dict) -> bool:
+    """Accept only an explicit graph-provided confirmation, never model prose."""
+    return str(record.get("outcome", "")).lower() == "confirmed_fraud" or any(
+        record.get(key) is True
+        for key in ("confirmed_fraud", "fraud_confirmed", "is_confirmed_fraud")
+    )
+
+
+def _parse_timestamp(value: object) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+    except ValueError:
+        return None
+
+
+def find_card_testing_sequence(txn: dict, window: list[dict], card_id: str) -> list[dict]:
+    """R5: return the actual small-authorization records (chronological) that
+    make up a qualifying card-testing sequence — three or more sub-$5 online
+    authorizations within one hour before a larger (>$5) purchase. Returns []
+    if the pattern does not hold. Kept separate from the boolean check so
+    evidence text can cite the real records instead of just a yes/no.
+    """
+    records = [row for row in window if str(row.get("card_id", card_id)) == str(card_id)] or list(window)
+    flagged_at = _parse_timestamp(txn.get("ts"))
+    try:
+        flagged_amount = float(txn.get("amount", 0) or 0)
+    except (TypeError, ValueError):
+        return []
+    if not flagged_at or flagged_amount <= 5:
+        return []
+
+    smalls = []
+    for row in records:
+        try:
+            is_small = float(row.get("amount", 0) or 0) < 5
+        except (TypeError, ValueError):
+            is_small = False
+        if is_small and row.get("channel") == "online":
+            timestamp = _parse_timestamp(row.get("ts"))
+            if timestamp and 0 <= (flagged_at - timestamp).total_seconds() <= 3600:
+                smalls.append(row)
+
+    if len(smalls) < 3:
+        return []
+    return sorted(smalls, key=lambda r: r.get("ts", ""))
+
+
+def detect_card_testing(txn: dict, window: list[dict], card_id: str) -> bool:
+    """R5: three small online authorizations within one hour before a larger purchase."""
+    return bool(find_card_testing_sequence(txn, window, card_id))
+
+
+def derive_policy_facts(bundle: dict, txn: dict, customer_response: dict | None,
+                        validation_requested: bool) -> dict:
+    """Derive the R1–R10 predicates from validated state for one case."""
+    case = bundle["case"]
+    baseline = bundle.get("baseline", {})
+    device_records = bundle.get("device_data", {}).get("transactions", [])
+    region_records = bundle.get("region_neighbors", [])
+    customer_denied = bool(customer_response and customer_response.get("responded")
+                           and customer_response.get("confirmed_fraud") is True)
+    customer_confirmed = bool(customer_response and customer_response.get("responded")
+                              and customer_response.get("confirmed_fraud") is False)
+    no_response_24h = bool(validation_requested and customer_response
+                           and customer_response.get("responded") is False)
+
+    def confirmed_cards(records: list[dict]) -> set[str]:
+        return {str(row["card_id"]) for row in records
+                if row.get("card_id") and _confirmed_fraud_record(row)}
+
+    confirmed_device_cards = confirmed_cards(device_records)
+    confirmed_region_cards = confirmed_cards(region_records)
+    if customer_denied:
+        confirmed_device_cards.add(str(case["card_id"]))
+        confirmed_region_cards.add(str(case["card_id"]))
+    shared_origin_confirmed = len(confirmed_device_cards) >= 2 or len(confirmed_region_cards) >= 2
+
+    confirmed_records = [row for row in device_records + region_records if _confirmed_fraud_record(row)]
+    coordinated_abuse_confirmed = len({str(row["customer_id"]) for row in confirmed_records if row.get("customer_id")}) >= 2
+    own_cards = {str(row["card_id"]) for row in bundle.get("cards", []) if row.get("card_id")}
+    compromised_cards = (({str(case["card_id"])} if customer_denied else set()) |
+                         confirmed_device_cards | confirmed_region_cards) & own_cards
+    credentials_confirmed = any(
+        row.get(key) is True
+        for row in [txn] + device_records + region_records
+        for key in ("credentials_compromised", "credential_compromise_confirmed")
+    )
+    card_testing = detect_card_testing(txn, bundle.get("window", []), case["card_id"])
+
+    # §6 counts independent fraud/legitimacy indicators, never query rows.
+    support = set()
+    if float(txn.get("risk_score", 0) or 0) >= 0.70:
+        support.add("upstream_risk_signal")
+    try:
+        amount = float(txn.get("amount", 0) or 0)
+        maximum = float(baseline.get("max_amount", 0) or 0)
+        average = float(baseline.get("avg_amount", 0) or 0)
+        if (maximum and amount > maximum) or (average and amount >= average * 3):
+            support.add("amount_anomaly")
+    except (TypeError, ValueError):
+        pass
+    if txn.get("channel") and txn.get("channel") not in baseline.get("usual_channels", []):
+        support.add("new_channel")
+    if card_testing:
+        support.add("card_testing_sequence")
+    if shared_origin_confirmed:
+        support.add("confirmed_shared_origin")
+    if customer_denied:
+        support.add("customer_denial")
+    if customer_confirmed:
+        support.add("customer_confirmation")
+
+    return {
+        "customer_denied": customer_denied,
+        "customer_confirmed": customer_confirmed,
+        "customer_no_response_24h": no_response_24h,
+        "card_testing_detected": card_testing,
+        "shared_origin_confirmed": shared_origin_confirmed,
+        "coordinated_abuse_confirmed": coordinated_abuse_confirmed,
+        "confirmed_compromised_cards": len(compromised_cards),
+        "credentials_confirmed_compromised": credentials_confirmed,
+        "independent_support_count": len(support),
+        "weak_evidence": len(support) <= 1,
+    }
+
+
 # ── LLM analysis ─────────────────────────────────────────────────────────────
 
 def analyse_evidence(bundle: dict, trigger_risk_score: float) -> dict:
@@ -517,6 +645,13 @@ Evidence rules:
 - source=customer is added separately by the system after contact — do not
   fabricate a customer-sourced evidence item yourself
 - entity_ids must be real IDs from the dataset
+- risk_score is an input signal, not a policy or pattern threshold. Do not
+  claim that any score clears a fraud threshold unless the supplied policy
+  explicitly states that threshold.
+- C1-C14 and D1-D15 are opaque dataset features. State their field name and
+  value, but never invent a specific definition such as "transaction count".
+- When describing a time window, include the flagged transaction or explicitly
+  say "other transactions" if you exclude it.
 - For legitimate verdict: affected_txn_ids=[], exposure_usd=0
 """
 
@@ -536,6 +671,13 @@ Evidence rules:
 # ── Customer response simulation ──────────────────────────────────────────────
 
 def simulate_customer_response(question: str, prob: float) -> dict:
+    """Simulate a customer reply for demo purposes.
+
+    This is never a real customer statement. The returned dict is tagged
+    ``"source": "simulated_customer_response"`` so nothing downstream can
+    mistake it for an authoritative, real customer fact (e.g. a real R2/R3
+    confirmation) without that provenance being visible in the record.
+    """
     prompt = f"""
 A bank customer was asked: "{question}"
 Fraud probability: {prob}
@@ -556,23 +698,478 @@ IMPORTANT: "confirmed_fraud": true means the customer CONFIRMED THE TRANSACTION 
 (i.e. they did NOT authorize it, they deny making it). "confirmed_fraud": false means
 the customer confirmed the transaction was LEGITIMATE (they authorized it).
 """
-    return llm_json(prompt)
+    result = llm_json(prompt)
+    result["source"] = "simulated_customer_response"
+    return result
 
 
 # ── Build action items ────────────────────────────────────────────────────────
 
-def build_action_items(actions: list[str], exposure: float) -> list[ActionItem]:
+def build_action_items(actions: list[str], exposure: float, action_reasons: dict[str, str],
+                       initial_probability: float | None = None) -> list[ActionItem]:
     items = []
     for action in actions:
+        # Reasons must come from the policy result for this investigation.
+        # A generic action-to-rule lookup cannot know which predicate held.
+        reason = action_reasons.get(action, get_rule(action, {"exposure": exposure}))
+        # A pre-contact block cannot cite a customer denial that occurred only
+        # after the initial recommendation was captured.
+        if initial_probability is not None and action == "BLOCK_CARD":
+            reason = (
+                f"Pre-contact assessment: fraud probability {initial_probability:.2f}; "
+                "recommendation recorded pending additional evidence"
+            )
         items.append(ActionItem(
             action=action,
             route=ActionRoute(get_route(action, exposure)),
-            reason=get_rule(action, {"exposure": exposure})
+            reason=reason
         ))
     return items
 
 
+def canonical_graph_ref(claim: str, proposed_ref: str, case: dict, txn: dict) -> str:
+    """Use a traceable installed-query reference for graph evidence.
+
+    LLMs frequently invent friendly query names such as ``customer_history``.
+    The answer format requires the query that actually produced the fact.
+    """
+    text = f"{claim} {proposed_ref}".lower()
+    customer_id = case["customer_id"]
+    if any(word in text for word in ("baseline", "average", "usual channel", "usual region", "maximum")):
+        return f"query:card_baseline(customer_id={customer_id})"
+    if any(word in text for word in ("window", "burst", "within 72", "within 48")):
+        return f"query:card_window(customer_id={customer_id}, hours=72)"
+    if any(word in text for word in ("device", "profile", "shared origin")):
+        return "query:device_neighbors"
+    if any(word in text for word in ("region", "billing")):
+        return "query:region_neighbors"
+    if any(word in text for word in ("prior case", "closed case", "similar case")):
+        return "query:similar_closed_cases"
+    return f"query:get_transaction(txn_id={txn.get('txn_id', case['flagged_txn_id'])})"
+
+
+def normalize_graph_claim(claim: str) -> str:
+    """Remove unsupported glosses that commonly appear in LLM evidence prose."""
+    # The dataset deliberately does not define individual C/D fields. Preserve
+    # the observed value while removing a fabricated business definition.
+    claim = re.sub(
+        r"\btransaction count \(C1\)", "unnamed C1 count feature", claim,
+        flags=re.IGNORECASE,
+    )
+    claim = re.sub(
+        r"\bC1\) is only", "C1 is", claim, flags=re.IGNORECASE,
+    )
+    # The README says risk scores are signals, never a pattern threshold. Do
+    # not allow a fabricated numerical threshold to look like policy evidence.
+    claim = re.sub(
+        r"\s*,?\s*which\s+(?:exceeds|is above|is higher than)\s+(?:the\s+)?[0-9.]+\s+threshold\s+for[^.]*\.?,?",
+        ".", claim, flags=re.IGNORECASE,
+    )
+    return claim
+
+
+def build_grounded_evidence(bundle: dict, txn: dict, analysis: dict,
+                            customer_response: dict | None,
+                            trigger_risk_score: float) -> list[EvidenceItem]:
+    """Build submission evidence only from facts actually retrieved or recorded.
+
+    LLM-written evidence may sound plausible while inventing thresholds, query
+    names, customer actions, or feature meanings. The LLM still assesses the
+    pattern and risk, but final evidence is assembled from the graph bundle and
+    the explicit simulated response.
+    """
+    case = bundle["case"]
+    baseline = bundle.get("baseline", {})
+    window = bundle.get("window", [])
+    txn_id = str(txn.get("txn_id", case["flagged_txn_id"]))
+    amount = float(txn.get("amount", 0) or 0)
+    evidence = [EvidenceItem(
+        claim=(
+            f"Flagged transaction {txn_id} was {txn.get('channel', 'unknown')} for "
+            f"${amount:.2f}; its upstream model risk score was {trigger_risk_score:.2f}."
+        ),
+        source=EvidenceSource.GRAPH,
+        ref=f"query:get_transaction(txn_id={txn_id})",
+        entity_ids=[txn_id],
+    )]
+
+    if baseline.get("total_txns"):
+        evidence.append(EvidenceItem(
+            claim=(
+                f"Customer {case['customer_id']} baseline contains {baseline['total_txns']} "
+                f"transactions, average amount ${baseline.get('avg_amount', 0):.2f}, "
+                f"maximum amount ${baseline.get('max_amount', 0):.2f}, usual channels "
+                f"{baseline.get('usual_channels', [])}, and usual regions "
+                f"{baseline.get('usual_regions', [])}."
+            ),
+            source=EvidenceSource.GRAPH,
+            ref=f"query:card_baseline(customer_id={case['customer_id']})",
+            entity_ids=[case["customer_id"]],
+        ))
+
+    if window:
+        window_ids = [str(item.get("txn_id")) for item in window[:8] if item.get("txn_id")]
+        channels = sorted({str(item.get("channel")) for item in window if item.get("channel")})
+        evidence.append(EvidenceItem(
+            claim=(
+                f"The 72-hour graph window contains {len(window)} transaction(s) "
+                f"with channel(s) {channels}."
+            ),
+            source=EvidenceSource.GRAPH,
+            ref=f"query:card_window(customer_id={case['customer_id']}, hours=72)",
+            entity_ids=window_ids,
+        ))
+
+        # If the flagged transaction is preceded by a qualifying card-testing
+        # sequence, cite the real records (amounts, count, elapsed minutes)
+        # rather than describing the pattern in the abstract.
+        sequence = find_card_testing_sequence(txn, window, case["card_id"])
+        if sequence:
+            small_amounts = [f"${float(r.get('amount', 0) or 0):.2f}" for r in sequence]
+            first_ts = _parse_timestamp(sequence[0].get("ts"))
+            flagged_ts = _parse_timestamp(txn.get("ts"))
+            elapsed_min = (
+                round((flagged_ts - first_ts).total_seconds() / 60)
+                if first_ts and flagged_ts else None
+            )
+            elapsed_clause = f" over {elapsed_min} minute(s)" if elapsed_min is not None else ""
+            evidence.append(EvidenceItem(
+                claim=(
+                    f"{len(sequence)} online authorization(s) under $5 "
+                    f"({', '.join(small_amounts)}){elapsed_clause}, followed by "
+                    f"a ${amount:.2f} transaction — the sequence R5 requires."
+                ),
+                source=EvidenceSource.GRAPH,
+                ref=f"query:card_window(customer_id={case['customer_id']}, hours=72)",
+                entity_ids=[str(r.get("txn_id")) for r in sequence if r.get("txn_id")] + [txn_id],
+            ))
+
+    device_data = bundle.get("device_data", {})
+    device_key = device_data.get("device_key", "")
+    device_cards = [str(card) for card in device_data.get("cards", []) if card]
+    if device_key or device_cards:
+        evidence.append(EvidenceItem(
+            claim=(
+                f"Device lookup returned profile '{device_key}' and {len(device_cards)} "
+                f"other card(s) in its configured graph-neighbor window."
+            ),
+            source=EvidenceSource.GRAPH,
+            ref="query:device_neighbors",
+            entity_ids=device_cards,
+        ))
+
+    prior_ids = [str(case_id) for case_id in bundle.get("prior_case_ids", []) if case_id]
+    if prior_ids:
+        evidence.append(EvidenceItem(
+            claim=f"Retrieved {len(prior_ids)} similar closed case(s) for case-memory comparison.",
+            source=EvidenceSource.GRAPH,
+            ref="query:similar_closed_cases",
+            entity_ids=prior_ids,
+        ))
+
+    if customer_response and customer_response.get("responded"):
+        provenance = customer_response.get("source", "unknown")
+        if provenance == "simulated_customer_response":
+            claim = (
+                f"Simulated customer response (not a real customer statement): "
+                f"'{customer_response.get('response_text', '')}'"
+            )
+        elif provenance == "trigger_customer_report":
+            claim = f"Customer-reported statement: '{customer_response.get('response_text', '')}'"
+        else:
+            claim = f"Customer response: '{customer_response.get('response_text', '')}'"
+        evidence.append(EvidenceItem(
+            claim=claim,
+            source=EvidenceSource.CUSTOMER,
+            ref=provenance,
+            entity_ids=[txn_id],
+        ))
+    return evidence
+
+
+def build_final_summary(case: dict, txn: dict, analysis: dict, actions: list[ActionItem],
+                        customer_response: dict | None, trigger_risk_score: float) -> str:
+    """Create an evidence-only final summary with no unsupported execution claim."""
+    outcome = "No customer response was recorded." if not customer_response else (
+        "Customer validation confirmed unauthorized activity." if customer_response.get("confirmed_fraud")
+        else "Customer validation confirmed the transaction was legitimate."
+    )
+    action_names = ", ".join(item.action for item in actions)
+    return (
+        f"Transaction {txn.get('txn_id')} (${float(txn.get('amount', 0) or 0):.2f}, "
+        f"{txn.get('channel', 'unknown')}) was investigated after an upstream risk score of "
+        f"{trigger_risk_score:.2f}. {outcome} Final assessment: {analysis['verdict']} "
+        f"(P={analysis['fraud_probability']:.2f}), pattern {analysis['pattern']}. "
+        f"Recommended actions: {action_names}."
+    )
+
+
+def derive_sar_activity_dates(analysis: dict, txn: dict, bundle: dict, case: dict) -> list[str]:
+    """Derive [first_date, last_date] from real transaction timestamps of the
+    affected txns (Fix #4). Never substitute case.opened_at for both ends —
+    that invents activity dates rather than reporting validated ones.
+
+    Falls back to opened_at only if no timestamped affected transaction is
+    available at all, and is a documented limitation, not a silent invention:
+    both ends collapse to the same real record when only one exists.
+    """
+    window = bundle.get("window", [])
+    flagged_id = str(txn.get("txn_id", ""))
+    ts_by_id = {str(t.get("txn_id", "")): t.get("ts") for t in window if t.get("ts")}
+    if flagged_id and txn.get("ts"):
+        ts_by_id[flagged_id] = txn.get("ts")
+
+    dates = sorted({
+        str(ts_by_id[tid])[:10]
+        for tid in analysis.get("affected_txn_ids", [])
+        if tid in ts_by_id and ts_by_id[tid]
+    })
+    if dates:
+        return [dates[0], dates[-1]]
+    if flagged_id and txn.get("ts"):
+        d = str(txn["ts"])[:10]
+        return [d, d]
+    # No validated timestamp anywhere for the affected transactions — fall
+    # back to the case's opened_at date rather than leaving the required
+    # field empty; this is a known limitation, not a fabricated activity date.
+    d = case["opened_at"][:10]
+    return [d, d]
+
+
+def build_no_sar_reason(policy, verdict: str) -> str:
+    """Derive the sar.reason text for file=False strictly from policy.rules_applied.
+
+    A rule name must never appear here unless the policy engine actually
+    applied it for this case (Fix #3) — no hardcoded fallback rule text.
+    """
+    rules = policy.rules_applied
+    if "R3" in rules:
+        return "R3: customer confirmation established a legitimate transaction; FILE_REPORT is not required."
+    if rules:
+        return (
+            f"Rule(s) {', '.join(rules)} applied for this case, but none of them "
+            f"establish a FILE_REPORT condition; FILE_REPORT is not required."
+        )
+    return "No deterministic policy rule was applied that establishes a FILE_REPORT condition."
+
+
+def build_sar_narrative(case: dict, txn: dict, analysis: dict, exposure: float,
+                        final_actions: list[ActionItem], customer_response: dict | None) -> str:
+    """Produce a factual SAR narrative; never claim recommendations executed."""
+    date = case["opened_at"][:10]
+    action_names = ", ".join(item.action for item in final_actions)
+    if customer_response and customer_response.get("confirmed_fraud"):
+        if customer_response.get("source") == "simulated_customer_response":
+            customer_fact = (
+                "A simulated customer response (not a real customer statement) indicated denial of authorization."
+            )
+        else:
+            customer_fact = "The customer denied authorizing the activity when contacted."
+    else:
+        customer_fact = "No customer denial was recorded before the investigation decision."
+
+    connected = analysis.get("connected_card_ids", [])
+    linkage_clause = (
+        f" A shared device profile links this activity to card(s) {', '.join(connected)}."
+        if connected else ""
+    )
+    prior = analysis.get("similar_prior_cases", [])
+    prior_clause = (
+        f" Similar closed case(s) {', '.join(prior)} were referenced as case-memory context."
+        if prior else ""
+    )
+
+    return (
+        f"This report concerns customer {case['customer_id']} and card {case['card_id']}. "
+        f"On {date}, transaction {txn.get('txn_id')} was recorded through the "
+        f"{txn.get('channel', 'unknown')} channel for ${float(txn.get('amount', 0) or 0):.2f}. "
+        f"The investigation assessed the activity as {analysis['pattern']} with fraud probability "
+        f"{analysis['fraud_probability']:.2f}. {customer_fact}{linkage_clause}{prior_clause} "
+        f"The identified suspicious exposure is ${exposure:.2f}. "
+        f"The institution recommends {action_names} under the applicable fraud policy approval routes."
+    )
+
+
 # ── Main investigation ────────────────────────────────────────────────────────
+
+def review_case_with_llm(answer: CaseAnswer, policy, policy_facts: dict,
+                         customer_response: dict | None) -> dict:
+    """LLM #2 — reviews the candidate CaseAnswer for internal contradictions.
+
+    The reviewer is diagnostic only (Fix #9). It may point at problems, but
+    is never allowed to invent or assert: customer denial/confirmation,
+    shared origin, card testing, coordinated abuse, credential compromise,
+    transaction/card/device IDs, or any R1-R10 predicate. It cannot write to
+    the case — only deterministic_final_validate() below can, and only from
+    already-established facts.
+    """
+    default = {
+        "issues": [],
+        "severity": "none",
+        "recommended_corrections": [],
+        "requires_deterministic_revalidation": False,
+    }
+    try:
+        facts = {
+            "rules_applied": policy.rules_applied,
+            "policy_facts": policy_facts,
+            "customer_response_source": (customer_response or {}).get("source"),
+            "customer_response_responded": (customer_response or {}).get("responded"),
+        }
+        prompt = f"""
+You are a fraud-case QA reviewer, not the decision-maker. You may only point
+at contradictions already visible in the JSON below — you must NEVER invent,
+assert, or imply a new fact of your own, including: customer denial or
+confirmation, shared origin, card testing, coordinated abuse, credential
+compromise, or any transaction/card/device ID or R1-R10 predicate not already
+present in DETERMINISTIC FACTS.
+
+DETERMINISTIC FACTS (authoritative — from the policy engine and validated
+graph/customer state; nothing here can be second-guessed, only compared
+against the candidate answer):
+{json.dumps(facts, indent=2)}
+
+CANDIDATE FINAL ANSWER JSON:
+{answer.to_json()}
+
+Check specifically for:
+- an R1-R10 rule named anywhere in the answer that is NOT in rules_applied
+- a customer-response claim inconsistent with customer_response_responded/source
+- unsupported verdict/pattern claims in the summary
+- evidence-count vs independent-support-count confusion in the summary text
+- initial vs final action inconsistencies given whether evidence_requests is empty
+- SAR inconsistencies (file vs reason vs presence of FILE_REPORT action)
+- any transaction/card/device ID in the answer not present in its own evidence list
+
+Return ONLY this JSON, nothing else:
+{{
+  "issues": ["short description of each problem found; empty list if none"],
+  "severity": "none | warning | critical",
+  "recommended_corrections": ["short description of what looks wrong and where — never a new fact you are asserting"],
+  "requires_deterministic_revalidation": true or false
+}}
+"""
+        review = llm_json(
+            prompt,
+            system="You are a meticulous QA reviewer. You find problems; you never invent facts. Output only valid JSON."
+        )
+        review.setdefault("issues", [])
+        review.setdefault("severity", "none")
+        review.setdefault("recommended_corrections", [])
+        review.setdefault("requires_deterministic_revalidation", bool(review["issues"]))
+        return review
+    except Exception as e:
+        print(f"  [WARN] LLM reviewer failed, proceeding with deterministic validation only: {e}")
+        return default
+
+
+def deterministic_final_validate(answer: CaseAnswer, policy, evidence_requests: list,
+                                 review: dict) -> tuple[CaseAnswer, list[str]]:
+    """Authoritative final check (Fix #10) — runs after the LLM reviewer.
+
+    This function is the only thing allowed to change the candidate answer
+    at this stage, and it only ever derives a replacement value from facts
+    already established elsewhere in the deterministic pipeline (policy,
+    policy.rules_applied, evidence_requests). It never applies a reviewer
+    "recommended_correction" directly, and it never invents a fact the
+    reviewer merely suggested — a reviewer-flagged issue is corrected only
+    if this function's own checks independently confirm it.
+
+    Returns (answer, corrections) where corrections is a human-readable
+    audit log of anything actually changed.
+    """
+    corrections: list[str] = []
+    allowed_rules = set(policy.rules_applied)
+    rule_pattern = re.compile(r"\bR(?:10|[1-9])\b")
+
+    # 1. sar.reason must never name a rule that wasn't actually applied.
+    mentioned = set(rule_pattern.findall(answer.sar.reason))
+    if mentioned - allowed_rules:
+        corrections.append(
+            f"sar.reason cited rule(s) {sorted(mentioned - allowed_rules)} not in "
+            f"rules_applied={sorted(allowed_rules)}; regenerated deterministically."
+        )
+        answer.sar.reason = (
+            policy.sar_reason if policy.file_sar
+            else build_no_sar_reason(policy, answer.case.verdict.value)
+        )
+
+    # 2. Same check for FINAL action reasons only. Initial (pre-contact)
+    # actions come from a separate, earlier policy pass whose own
+    # rules_applied isn't carried in the answer schema, so R1-citing initial
+    # actions are not cross-checked here — only final actions, which must
+    # match this case's actual final rules_applied.
+    for item in answer.next_best_actions.final:
+        item_mentioned = set(rule_pattern.findall(item.reason))
+        unsupported = item_mentioned - allowed_rules
+        if unsupported:
+            corrections.append(
+                f"final action {item.action} reason cited unsupported rule(s) "
+                f"{sorted(unsupported)}; replaced with the default policy reason."
+            )
+            item.reason = get_rule(item.action, {})
+
+    # 3. Every action needs a non-empty reason.
+    for item in list(answer.next_best_actions.initial) + list(answer.next_best_actions.final):
+        if not item.reason or not item.reason.strip():
+            item.reason = get_rule(item.action, {})
+            corrections.append(f"action {item.action} had an empty reason; filled from the default rule table.")
+
+    # 4. sar.file must match presence of FILE_REPORT in final actions. The
+    # schema enforces this at construction time; this is a second, explicit
+    # check in case anything upstream mutated fields after construction.
+    has_file_report = "FILE_REPORT" in [a.action for a in answer.next_best_actions.final]
+    if has_file_report != answer.sar.file:
+        corrections.append(
+            "sar.file did not match presence of FILE_REPORT in final actions; "
+            "corrected sar.file to match final actions."
+        )
+        answer.sar.file = has_file_report
+
+    # 5. legitimate verdict must carry no affected fraud txns / zero exposure.
+    if answer.case.verdict == Verdict.LEGITIMATE:
+        if answer.case.affected_txn_ids or answer.case.exposure_usd:
+            corrections.append(
+                "legitimate verdict carried non-empty affected_txn_ids/exposure_usd; "
+                "cleared to satisfy the legitimate-case invariant."
+            )
+            answer.case.affected_txn_ids = []
+            answer.case.exposure_usd = 0.0
+            answer.case.first_suspicious_txn_id = ""
+
+    # 6. Evidence entity_ids: drop empty-string entries (a formatting
+    # artifact, never authoritative content).
+    for item in answer.case.evidence:
+        cleaned = [e for e in item.entity_ids if e]
+        if cleaned != item.entity_ids:
+            item.entity_ids = cleaned
+
+    # 7. Initial vs final actions must be identical when no evidence was
+    # requested (the README's stated invariant).
+    if not evidence_requests:
+        initial_names = [a.action for a in answer.next_best_actions.initial]
+        final_names = [a.action for a in answer.next_best_actions.final]
+        if initial_names != final_names:
+            corrections.append(
+                "no evidence_requests were recorded but initial/final actions "
+                "differed; final actions copied into initial to satisfy the "
+                "no-new-evidence invariant."
+            )
+            answer.next_best_actions.initial = list(answer.next_best_actions.final)
+            answer.next_best_actions.what_changed = "nothing"
+
+    # 8. The reviewer is not authoritative. A "critical" flag this
+    # function's own checks did NOT independently confirm is logged for the
+    # analyst, but never turned into a field change on the reviewer's say-so.
+    if review.get("severity") == "critical" and not corrections:
+        corrections.append(
+            "LLM reviewer flagged severity=critical with no issue independently "
+            "confirmed by the deterministic validator; logged only — no field "
+            "was changed without a validated basis."
+        )
+
+    return answer, corrections
+
 
 def investigate_case(case: dict) -> CaseAnswer:
     global _tokens
@@ -615,6 +1212,18 @@ def investigate_case(case: dict) -> CaseAnswer:
     analysis = ground_affected_transactions(analysis, bundle, txn)
     analysis = ensure_pattern_description(analysis)
 
+    # §6 is a guard on an LLM assessment, not a request to pad the evidence
+    # list.  A decisive score without two independent validated indicators
+    # remains unresolved and therefore goes through the normal validation path.
+    preliminary_facts = derive_policy_facts(bundle, txn, None, False)
+    if (
+        trigger_type != "customer_report"
+        and analysis["fraud_probability"] >= STOP_HIGH
+        and preliminary_facts["independent_support_count"] < 2
+    ):
+        analysis["fraud_probability"] = STOP_HIGH - 0.01
+        analysis["verdict"] = "uncertain"
+
     # Step 2c — Progress the case: write an OPEN record before contact/decision
     # (case memory should be updated as the investigation progresses,
     # not only once at the very end)
@@ -627,6 +1236,9 @@ def investigate_case(case: dict) -> CaseAnswer:
     )
 
     # Step 3 — Additional evidence / contact
+    # Preserve the pre-contact assessment. Initial actions must describe what
+    # was known before a simulated customer response, never the later verdict.
+    pre_contact_analysis = copy.deepcopy(analysis)
     customer_response = None
     evidence_requests = []
     step_counter = len(bundle["window"]) + 4
@@ -641,14 +1253,17 @@ def investigate_case(case: dict) -> CaseAnswer:
                 .replace("Refers to " + case["flagged_txn_id"] + ".", "")
                 .strip()
                 .replace("'", "")
-            )
+            ),
+            "source": "trigger_customer_report",
         }
         _tokens += 50
         print(f"  [CONTACT] Using known customer denial from trigger")
 
-    elif analysis.get("needs_customer_contact") and STOP_LOW < analysis["fraud_probability"] < STOP_HIGH:
-        # Outside this band the verdict is already decisive per §6 — contacting
-        # the customer wouldn't change the outcome, so skip the extra LLM call.
+    elif STOP_LOW < analysis["fraud_probability"] < STOP_HIGH:
+        # An unresolved probability is not a defensible closed verdict.  Always
+        # gather and record a permitted validation step in this band instead of
+        # letting an LLM silently declare a case closed without new evidence.
+        # Outside this band the verdict is already decisive per §6.
         print(f"  [CONTACT] Simulating customer contact...")
         question = analysis.get(
             "customer_contact_question",
@@ -670,11 +1285,13 @@ def investigate_case(case: dict) -> CaseAnswer:
                 analysis["status"] = "closed_fraud"
                 print(f"  [CONTACT] Confirmed fraud → P={analysis['fraud_probability']}")
             else:
-                analysis["fraud_probability"] = max(0.05, analysis["fraud_probability"] - 0.20)
-                if analysis["fraud_probability"] < STOP_LOW:
-                    analysis["verdict"] = "legitimate"
-                    analysis["status"] = "closed_legitimate"
-                print(f"  [CONTACT] Denied → P={analysis['fraud_probability']}")
+                # A customer confirmation settles the question under R3.  Do
+                # not leave a case as "uncertain" while marking it closed
+                # legitimate, which violates the answer-file contract.
+                analysis["fraud_probability"] = 0.05
+                analysis["verdict"] = "legitimate"
+                analysis["status"] = "closed_legitimate"
+                print(f"  [CONTACT] Confirmed legitimate → P={analysis['fraud_probability']}")
 
     # Analyst-provided context is recorded as an explicit evidence request too
     if trigger_type == "analyst_request":
@@ -687,32 +1304,35 @@ def investigate_case(case: dict) -> CaseAnswer:
     analysis["fraud_probability"] = round(analysis["fraud_probability"], 2)
     analysis = ground_affected_transactions(analysis, bundle, txn)
 
-    # §R5/§R7 signals derived from real data, not left to the LLM to assert
-    card_testing_cleared_over_100 = float(txn.get("amount", 0) or 0) > 100
+    # Derive every policy predicate from this case's graph/customer state.
+    # In particular, no LLM pattern label, probability, or prose can create a
+    # rule condition.
+    policy_facts = derive_policy_facts(
+        bundle, txn, customer_response,
+        any(request.type == "customer_validation" for request in evidence_requests),
+    )
+    card_testing_cleared_over_100 = (
+        policy_facts["card_testing_detected"] and float(txn.get("amount", 0) or 0) > 100
+    )
     matches_recurring_charge = compute_matches_recurring_charge(txn, bundle["baseline"])
-    coordinated_across_customers = bool(bundle["device_data"].get("other_customers"))
 
     # §R8 signal: does the deterministic graph-side pattern guess disagree
     # with what the LLM classified? A real disagreement between two
     # independent readings of the evidence is exactly what R8 means by
     # "the evidence conflicts".
     heuristic_pattern = guess_pattern(txn, bundle["baseline"])
-    evidence_conflicts = (
+    # Two distinct concepts (Fix #7): not having enough independent support is
+    # NOT the same thing as two independent readings actually disagreeing.
+    # Only the latter is a real "evidence conflict" for R8's purposes.
+    insufficient_evidence = policy_facts["independent_support_count"] < 2
+    actual_evidence_conflict = (
         heuristic_pattern not in ("none", analysis["pattern"])
         and analysis["pattern"] not in ("none",)
     )
-
-    # §R10 signal: only treat credentials as confirmed compromised when we
-    # have corroborated account-takeover evidence — a shared device profile
-    # AND either the customer denied the activity or confidence is already
-    # decisive. Not just an LLM assertion.
-    credentials_confirmed_compromised = (
-        analysis["pattern"] == "account_takeover"
-        and analysis.get("shared_origin", False)
-        and (
-            (customer_response and customer_response.get("confirmed_fraud") is True)
-            or analysis["fraud_probability"] >= STOP_HIGH
-        )
+    evidence_conflicts = actual_evidence_conflict
+    print(
+        f"  [FACTS] insufficient_evidence={insufficient_evidence} "
+        f"actual_evidence_conflict={actual_evidence_conflict}"
     )
 
     # Step 4 — Policy engine
@@ -720,7 +1340,6 @@ def investigate_case(case: dict) -> CaseAnswer:
     similar_dict = bundle["similar_cases"] if isinstance(bundle["similar_cases"], dict) else {}
     prior_cases = similar_dict.get("by_customer", [])
     has_prior = any(cc.get("outcome") == "confirmed_fraud" for cc in prior_cases)
-    n_cards = len([c for c in bundle["cards"] if c.get("card_id") != case["card_id"]])
     exposure = analysis.get("exposure_usd", txn.get("amount", 0))
 
     policy_input = PolicyInput(
@@ -730,33 +1349,69 @@ def investigate_case(case: dict) -> CaseAnswer:
         pattern=analysis["pattern"],
         customer_responded=customer_response.get("responded") if customer_response else None,
         customer_confirmed_fraud=customer_response.get("confirmed_fraud") if customer_response else None,
-        shared_origin=analysis.get("shared_origin", False),
-        n_cards_confirmed=n_cards,
+        shared_origin=policy_facts["shared_origin_confirmed"],
+        n_cards_confirmed=policy_facts["confirmed_compromised_cards"],
         has_prior_fraud=has_prior,
         channel=txn.get("channel", "unknown"),
-        evidence_count=len(analysis.get("evidence", [])),
+        evidence_count=len(build_grounded_evidence(bundle, txn, analysis, customer_response, trigger_risk_score)),
         evidence_conflicts=evidence_conflicts,
         card_testing_cleared_over_100=card_testing_cleared_over_100,
         matches_recurring_charge=matches_recurring_charge,
-        coordinated_across_customers=coordinated_across_customers,
-        credentials_confirmed_compromised=credentials_confirmed_compromised,
+        coordinated_across_customers=policy_facts["coordinated_abuse_confirmed"],
+        **policy_facts,
     )
 
     policy = apply_policy(policy_input)
 
-    initial_action_strings = ["CREATE_CASE"]
-    if analysis["fraud_probability"] < R1_VERIFY_THRESHOLD:
-        initial_action_strings.append("VERIFY_WITH_CUSTOMER")
-        if analysis["pattern"] in ("card_testing", "account_takeover", "card_not_present_new_device"):
+    # Build the first recommendation from the assessment before any requested
+    # evidence returned. This makes the two action snapshots auditable.
+    initial_policy_input = PolicyInput(
+        verdict=pre_contact_analysis["verdict"],
+        fraud_probability=pre_contact_analysis["fraud_probability"],
+        exposure_usd=exposure,
+        pattern=pre_contact_analysis["pattern"],
+        customer_responded=None,
+        customer_confirmed_fraud=None,
+        shared_origin=preliminary_facts["shared_origin_confirmed"],
+        n_cards_confirmed=preliminary_facts["confirmed_compromised_cards"],
+        has_prior_fraud=has_prior,
+        channel=txn.get("channel", "unknown"),
+        evidence_count=len(build_grounded_evidence(bundle, txn, pre_contact_analysis, None, trigger_risk_score)),
+        evidence_conflicts=evidence_conflicts,
+        card_testing_cleared_over_100=card_testing_cleared_over_100,
+        matches_recurring_charge=matches_recurring_charge,
+        coordinated_across_customers=preliminary_facts["coordinated_abuse_confirmed"],
+        **preliminary_facts,
+    )
+    initial_action_strings = apply_policy(initial_policy_input).initial_actions
+    # When the agent itself has identified an unresolved evidence gap and sent
+    # a validation request, the pre-response snapshot must show that request
+    # rather than prematurely treating the later customer answer as known.
+    if any(request.type == "customer_validation" for request in evidence_requests):
+        initial_action_strings = ["CREATE_CASE", "VERIFY_WITH_CUSTOMER"]
+        if pre_contact_analysis["pattern"] in (
+            "card_testing", "account_takeover", "card_not_present_new_device"
+        ):
             initial_action_strings.append("STEP_UP_AUTH")
-    else:
-        initial_action_strings.append("BLOCK_CARD")
 
-    initial_actions = build_action_items(initial_action_strings, exposure)
-    final_actions = build_action_items(policy.final_actions, exposure)
+    # The README requires identical snapshots when no additional evidence was
+    # requested.  In that situation all available evidence is already known,
+    # so record the complete policy recommendation in both snapshots.
+    if not evidence_requests:
+        initial_action_strings = policy.final_actions.copy()
+        final_action_strings = policy.final_actions.copy()
+    else:
+        final_action_strings = policy.final_actions.copy()
+
+    initial_actions = build_action_items(
+        initial_action_strings, exposure,
+        apply_policy(initial_policy_input).action_reasons,
+        initial_probability=pre_contact_analysis["fraud_probability"] if evidence_requests else None,
+    )
+    final_actions = build_action_items(final_action_strings, exposure, policy.action_reasons)
 
     initial_names = set(initial_action_strings)
-    final_names = set(policy.final_actions)
+    final_names = set(final_action_strings)
     added = final_names - initial_names
     removed = initial_names - final_names
 
@@ -773,7 +1428,19 @@ def investigate_case(case: dict) -> CaseAnswer:
                 f"Removed: {', '.join(removed) if removed else 'none'}."
             )
     else:
-        what_changed = "nothing" if not evidence_requests else "No customer response received — actions unchanged."
+        if customer_response and customer_response.get("responded"):
+            disposition = "confirmed unauthorized activity" if customer_response.get("confirmed_fraud") else "confirmed the transaction was legitimate"
+            what_changed = f"Customer validation {disposition}. Actions remained the same."
+        elif customer_response and customer_response.get("responded") is False:
+            what_changed = "No customer response was received within 24 hours; actions remained the same."
+        else:
+            what_changed = "nothing"
+
+    # A recorded response is authoritative for the transition narrative even
+    # when the action sets happen to be identical.
+    if customer_response and customer_response.get("responded"):
+        disposition = "confirmed unauthorized activity" if customer_response.get("confirmed_fraud") else "confirmed the transaction was legitimate"
+        what_changed = f"Customer validation {disposition}; final actions reflect the settled case outcome."
 
     # STEP_UP_AUTH evidence request (was recommended but never actually
     # captured as an evidence-gathering step)
@@ -792,24 +1459,11 @@ def investigate_case(case: dict) -> CaseAnswer:
     print(f"  [POLICY] Initial={initial_action_strings}")
     print(f"  [POLICY] Final={policy.final_actions}")
 
-    # Step 5 — Build evidence items
-    evidence_items = []
-    for e in analysis.get("evidence", []):
-        try:
-            source_map = {
-                "graph": EvidenceSource.GRAPH,
-                "document": EvidenceSource.DOCUMENT,
-                "customer": EvidenceSource.CUSTOMER,
-                "external": EvidenceSource.EXTERNAL
-            }
-            evidence_items.append(EvidenceItem(
-                claim=str(e.get("claim", e.get("signal", ""))),
-                source=source_map.get(str(e.get("source", "graph")).lower(), EvidenceSource.GRAPH),
-                ref=str(e.get("ref", f"query:get_transaction({case['flagged_txn_id']})")),
-                entity_ids=[str(x) for x in e.get("entity_ids", [])]
-            ))
-        except Exception as ex:
-            print(f"  [WARN] Evidence item skipped: {ex}")
+    # Step 5 — Assemble final evidence deterministically from retrieved data.
+    # Do not export LLM-authored factual claims into a scored case file.
+    evidence_items = build_grounded_evidence(
+        bundle, txn, analysis, customer_response, trigger_risk_score
+    )
 
     # Analyst-provided context becomes explicit EXTERNAL evidence
     if trigger_type == "analyst_request" and case.get("trigger_text"):
@@ -820,20 +1474,31 @@ def investigate_case(case: dict) -> CaseAnswer:
             entity_ids=[case_id]
         ))
 
-    # §6/§R3: the customer's own reply is frequently the deciding evidence —
-    # make it a first-class evidence item, not just prose buried in the summary
-    if customer_response and customer_response.get("responded"):
-        evidence_items.append(EvidenceItem(
-            claim=f"Customer response: '{customer_response.get('response_text', '')}'",
-            source=EvidenceSource.CUSTOMER,
-            ref="evidence_request:1",
-            entity_ids=[str(case["flagged_txn_id"])],
-        ))
+    # Evidence records are retained for the analyst; §6 separately uses
+    # policy_facts["independent_support_count"], not this list's length.
 
-    # §6 stopping rule enforcement: a decisive verdict (>=0.85 or <=0.15) must
-    # be backed by >=2 evidence items. Pad deterministically from data already
-    # in the bundle rather than declaring the case closed on too little.
-    evidence_items = augment_evidence_to_minimum(evidence_items, bundle, txn, analysis)
+    # Keep only real, graph-returned cards and remove the investigated card
+    # before any JSON or SAR field is assembled.
+    valid_customer_cards = {
+        str(card.get("card_id")) for card in bundle.get("cards", [])
+        if card.get("card_id")
+    }
+    analysis["connected_card_ids"] = sorted({
+        str(card_id) for card_id in analysis.get("connected_card_ids", [])
+        if str(card_id) in valid_customer_cards and str(card_id) != str(case["card_id"])
+    })
+
+    # Fix #5: connected_device_profiles must come from validated graph device
+    # data, not directly from the LLM's list. The only device profile string
+    # this bundle can actually confirm is the one returned by device_neighbors
+    # for the flagged transaction — the LLM may suggest others, but they are
+    # dropped unless they match a validated value.
+    validated_device_key = str(bundle.get("device_data", {}).get("device_key") or "")
+    valid_device_profiles = {validated_device_key} if validated_device_key else set()
+    analysis["connected_device_profiles"] = sorted({
+        str(profile) for profile in analysis.get("connected_device_profiles", [])
+        if str(profile) in valid_device_profiles
+    })
 
     # Step 6 — SAR
     sar_narrative = ""
@@ -842,51 +1507,55 @@ def investigate_case(case: dict) -> CaseAnswer:
     sar_amount = 0.0
 
     if policy.file_sar:
-        print(f"  [SAR] Writing narrative...")
-        sar_narrative = llm(
-            f"""Write a FinCEN SAR narrative. 6-12 sentences. Professional tone.
-Case: {case_id} | Customer: {case['customer_id']} | Card: {case['card_id']}
-Pattern: {analysis['pattern']}
-Amount: ${exposure:.2f}
-Transactions: {analysis.get('affected_txn_ids', [case['flagged_txn_id']])}
-Date: {case['opened_at'][:10]}
-Channel: {txn.get('channel')}
-Connected cards: {analysis.get('connected_card_ids', [])}
-Summary: {analysis.get('summary', '')}
-
-Include: who (customer/card IDs), what happened, when (dates), where (channel/region),
-how it was carried out, why it is suspicious. Name all subjects explicitly."""
+        print(f"  [SAR] Building factual narrative...")
+        sar_narrative = build_sar_narrative(
+            case, txn, analysis, exposure, final_actions, customer_response
         )
-        _tokens += 500
-        sar_subjects = [case["customer_id"], case["card_id"]] + analysis.get("connected_card_ids", [])
+        sar_subjects = list(dict.fromkeys(
+            [case["customer_id"], case["card_id"]] + analysis.get("connected_card_ids", [])
+        ))
         sar_amount = float(exposure)
-        sar_dates = [case["opened_at"][:10], case["opened_at"][:10]]
+        sar_dates = derive_sar_activity_dates(analysis, txn, bundle, case)
+
+    final_summary = build_final_summary(
+        case, txn, analysis, final_actions, customer_response, trigger_risk_score
+    )
 
     status_map = {
         "fraud": CaseStatus.CLOSED_FRAUD,
         "legitimate": CaseStatus.CLOSED_LEGITIMATE,
         "uncertain": CaseStatus.ESCALATED if "ESCALATE_TO_ANALYST" in policy.final_actions else CaseStatus.OPEN
     }
-    status = CaseStatus(analysis.get("status", status_map.get(analysis["verdict"], "open")))
+    # Status is a deterministic consequence of the final verdict and policy,
+    # not an unvalidated LLM field.  This prevents combinations such as
+    # closed_legitimate + uncertain.
+    status = status_map[analysis["verdict"]]
 
     # Step 7 — Final graph write (progresses the case opened in Step 2c)
     written_to_graph = gc.write_investigation_case(
         case_id=case_id, customer_id=case["customer_id"], card_id=case["card_id"],
         opened_at=case["opened_at"], status=status.value, verdict=analysis["verdict"],
         fraud_probability=analysis["fraud_probability"], pattern=analysis["pattern"],
-        exposure_usd=float(exposure), summary=analysis.get("summary", "")
+        exposure_usd=float(exposure), summary=final_summary
     )
 
     elapsed = round(time.time() - start_time, 1)
 
-    two_plus_evidence = len(evidence_items) >= 2
-    stop_reason = analysis.get(
-        "stop_reason",
-        f"Investigation complete. Verdict: {analysis['verdict']} "
-        f"(P={analysis['fraud_probability']}, {len(evidence_items)} evidence items — "
-        f"§6 stopping threshold {'met' if (analysis['fraud_probability'] >= STOP_HIGH or analysis['fraud_probability'] <= STOP_LOW) and two_plus_evidence else 'not fully met, escalated instead'}). "
-        f"Pattern: {analysis['pattern']}. Policy applied."
-    )
+    independent_support_count = policy_facts["independent_support_count"]
+    if customer_response and customer_response.get("responded"):
+        if customer_response.get("confirmed_fraud"):
+            stop_reason = "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2."
+        else:
+            stop_reason = "Customer validation confirmed the transaction was legitimate; the case is closed under R3."
+    elif customer_response and customer_response.get("responded") is False:
+        stop_reason = "Customer validation received no response within 24 hours; the case remains open and actions follow R4."
+    elif (analysis["fraud_probability"] >= STOP_HIGH or analysis["fraud_probability"] <= STOP_LOW) and independent_support_count >= 2:
+        stop_reason = (
+            f"§6 stopping threshold met: {independent_support_count} independent indicators support "
+            f"a {analysis['verdict']} verdict (P={analysis['fraud_probability']})."
+        )
+    else:
+        stop_reason = "Investigation remains open because additional evidence is needed before a defensible decision."
 
     answer = CaseAnswer(
         case_id=case_id,
@@ -900,12 +1569,14 @@ how it was carried out, why it is suspicious. Name all subjects explicitly."""
                 if analysis["verdict"] != "legitimate" else [],
             first_suspicious_txn_id=str(analysis.get("first_suspicious_txn_id", ""))
                 if analysis["verdict"] != "legitimate" else "",
-            connected_card_ids=[str(x) for x in analysis.get("connected_card_ids", [])],
+            # This field is for *other* cards linked to the compromise. The
+            # investigated card itself is never a connected card.
+            connected_card_ids=analysis["connected_card_ids"],
             connected_device_profiles=[str(x) for x in analysis.get("connected_device_profiles", [])],
             exposure_usd=float(exposure) if analysis["verdict"] != "legitimate" else 0.0,
             evidence=evidence_items,
             similar_prior_cases=[str(x) for x in bundle.get("prior_case_ids", [])],
-            summary=analysis.get("summary", ""),
+            summary=final_summary,
             written_to_graph=written_to_graph,
             graph_case_id=case_id if written_to_graph else ""
         ),
@@ -917,8 +1588,10 @@ how it was carried out, why it is suspicious. Name all subjects explicitly."""
         ),
         sar=SAR(
             file=policy.file_sar,
-            reason=f"R2/R6/R9: {analysis['pattern']} confirmed, exposure ${exposure:.2f}" if policy.file_sar
-                   else f"Exposure ${(0.0 if analysis['verdict'] == 'legitimate' else float(exposure)):.2f} below threshold or verdict not confirmed fraud",
+            reason=(
+                policy.sar_reason if policy.file_sar
+                else build_no_sar_reason(policy, analysis["verdict"])
+            ),
             narrative=sar_narrative,
             subjects=sar_subjects,
             total_amount_usd=sar_amount,
@@ -929,6 +1602,71 @@ how it was carried out, why it is suspicious. Name all subjects explicitly."""
         tokens=_tokens,
         latency_s=elapsed
     )
+
+    # Step 7b — LLM #2 reviewer (diagnostic only) then the deterministic
+    # final validator (authoritative). Neither can invent a fact; the
+    # validator only ever corrects from facts already established upstream.
+    print(f"  [REVIEW] Running LLM reviewer + deterministic validator...")
+    review = review_case_with_llm(answer, policy, policy_facts, customer_response)
+    answer, validator_corrections = deterministic_final_validate(answer, policy, evidence_requests, review)
+    if review["issues"]:
+        print(f"  [REVIEW] Reviewer issues ({review['severity']}): {review['issues']}")
+    if validator_corrections:
+        print(f"  [REVIEW] Validator corrections: {validator_corrections}")
+    answer.tokens = _tokens
+    answer.qa = QASummary(
+        reviewer_severity=review["severity"],
+        reviewer_issue_count=len(review["issues"]),
+        validator_correction_count=len(validator_corrections),
+        clean=(not review["issues"] and not validator_corrections),
+    )
+
+    # Step 8 — Persist an auditable graph lifecycle, not only a JSON export.
+    # The event payloads are intentionally compact JSON so they remain easy to
+    # inspect in GraphStudio and can be replayed by the dashboard.
+    event_time = case["opened_at"]
+    lifecycle_events = [
+        ("evidence", {
+            "evidence": [item.model_dump() for item in answer.case.evidence],
+            "evidence_requests": [item.model_dump() for item in answer.evidence_requests],
+        }),
+        ("recommendations", {
+            "initial": [item.model_dump() for item in answer.next_best_actions.initial],
+            "final": [item.model_dump() for item in answer.next_best_actions.final],
+            "what_changed": answer.next_best_actions.what_changed,
+        }),
+        ("decision", {
+            "status": status.value,
+            "verdict": analysis["verdict"],
+            "fraud_probability": analysis["fraud_probability"],
+            "stop_reason": answer.stop_reason,
+            "sar_file": answer.sar.file,
+        }),
+        ("review", {
+            "reviewer_issues": review["issues"],
+            "reviewer_severity": review["severity"],
+            "reviewer_requires_revalidation": review["requires_deterministic_revalidation"],
+            "validator_corrections": validator_corrections,
+        }),
+    ]
+    for event_type, payload in lifecycle_events:
+        event_id = f"{case_id}:{event_type}"
+        if not gc.write_investigation_event(
+            case_id, event_id, event_type, json.dumps(payload), event_time
+        ):
+            print(f"  [WARN] Graph lifecycle event not written: {event_id}")
+
+    # Lifecycle writes are real MCP calls and belong in the reported count.
+    answer.tool_calls = gc.TOOL_CALLS
+
+    # Step 9 — Update semantic case memory so a later case can retrieve this
+    # investigation, including reruns of the same case without duplicate rows.
+    try:
+        from graphrag import remember_investigation
+        remember_investigation(answer)
+    except Exception as e:
+        # GraphRAG failure must not discard an otherwise valid investigation.
+        print(f"  [WARN] Case-memory update failed: {e}")
 
     print(f"  ✅ Done in {elapsed}s | {gc.TOOL_CALLS} tool calls | {_tokens} tokens")
     return answer

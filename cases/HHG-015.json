@@ -1,5 +1,5 @@
 {
-  "case_id": "HHG-002",
+  "case_id": "HHG-015",
   "case": {
     "status": "closed_fraud",
     "verdict": "fraud",
@@ -7,38 +7,46 @@
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
-      "3478782"
+      "3464869"
     ],
-    "first_suspicious_txn_id": "3478782",
-    "connected_card_ids": [
-      "C11891"
-    ],
+    "first_suspicious_txn_id": "3464869",
+    "connected_card_ids": [],
     "connected_device_profiles": [],
-    "exposure_usd": 292.36,
+    "exposure_usd": 599.94,
     "evidence": [
       {
-        "claim": "Flagged transaction 3478782 was online for $292.36; its upstream model risk score was 0.79.",
+        "claim": "Flagged transaction 3464869 was online for $599.94; its upstream model risk score was 0.77.",
         "source": "graph",
-        "ref": "query:get_transaction(txn_id=3478782)",
+        "ref": "query:get_transaction(txn_id=3464869)",
         "entity_ids": [
-          "3478782"
+          "3464869"
         ]
       },
       {
-        "claim": "Customer C11891 baseline contains 44 transactions, average amount $47.46, maximum amount $292.36, usual channels ['online'], and usual regions ['375'].",
+        "claim": "Customer C03042 baseline contains 79 transactions, average amount $144.57, maximum amount $599.94, usual channels ['online', 'in_person'], and usual regions ['387', '433', '204', '170', '337', '143', '325', '299', '123', '225', '472', '327', '126', '485', '476', '184', '315', '272', '330', '177', '264', '231'].",
         "source": "graph",
-        "ref": "query:card_baseline(customer_id=C11891)",
+        "ref": "query:card_baseline(customer_id=C03042)",
         "entity_ids": [
-          "C11891"
+          "C03042"
         ]
       },
       {
-        "claim": "The 72-hour graph window contains 1 transaction(s) with channel(s) ['online'].",
+        "claim": "The 72-hour graph window contains 5 transaction(s) with channel(s) ['in_person', 'online'].",
         "source": "graph",
-        "ref": "query:card_window(customer_id=C11891, hours=72)",
+        "ref": "query:card_window(customer_id=C03042, hours=72)",
         "entity_ids": [
-          "3478782"
+          "3462385",
+          "3462387",
+          "3462404",
+          "3464869",
+          "3468946"
         ]
+      },
+      {
+        "claim": "Device lookup returned profile 'Trident/7.0|Windows 8.1|ie 11.0 for desktop|1680x1050' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
       },
       {
         "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
@@ -55,7 +63,7 @@
         "source": "customer",
         "ref": "simulated_customer_response",
         "entity_ids": [
-          "3478782"
+          "3464869"
         ]
       }
     ],
@@ -64,14 +72,14 @@
       "CC-5557",
       "CC-5553"
     ],
-    "summary": "Transaction 3478782 ($292.36, online) was investigated after an upstream risk score of 0.79. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "summary": "Transaction 3464869 ($599.94, online) was investigated after an upstream risk score of 0.77. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
     "written_to_graph": true,
-    "graph_case_id": "HHG-002"
+    "graph_case_id": "HHG-015"
   },
   "evidence_requests": [
     {
       "type": "customer_validation",
-      "asked_after_step": 5,
+      "asked_after_step": 9,
       "assumed_response": "No, I did not authorize this transaction. Please block my card immediately!"
     }
   ],
@@ -111,9 +119,9 @@
     "activity_dates": []
   },
   "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
-  "tool_calls": 11,
-  "tokens": 5329,
-  "latency_s": 19.9,
+  "tool_calls": 13,
+  "tokens": 5700,
+  "latency_s": 17.1,
   "qa": {
     "reviewer_severity": "none",
     "reviewer_issue_count": 0,

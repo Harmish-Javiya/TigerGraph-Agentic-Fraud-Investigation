@@ -129,6 +129,16 @@ class LocalVectorStore:
             self.embeddings = np.vstack([self.embeddings, vecs])
         self.metadata.extend(metadata)
 
+    def upsert(self, text: str, metadata: dict, key: str = "case_id"):
+        """Replace an existing case-memory record, then embed the latest one."""
+        existing_id = metadata.get(key)
+        if self.embeddings is not None and existing_id:
+            keep = [i for i, item in enumerate(self.metadata) if item.get(key) != existing_id]
+            if len(keep) != len(self.metadata):
+                self.embeddings = self.embeddings[keep] if keep else None
+                self.metadata = [self.metadata[i] for i in keep]
+        self.add([text], [metadata])
+
     def search(self, query_text: str, top_k: int = 5) -> list:
         if self.embeddings is None or len(self.metadata) == 0:
             return []
@@ -321,6 +331,39 @@ def guess_pattern(txn: dict, baseline: dict) -> str:
     if channel == "online":
         return "card_not_present_fraud"
     return "none"
+
+
+def remember_investigation(answer) -> None:
+    """Make a completed investigation retrievable by later investigations.
+
+    The graph remains the system of record through `write_investigation_case`;
+    this maintains the local semantic index used by GraphRAG.  Upsert semantics
+    prevent reruns of the same case from accumulating stale conclusions.
+    """
+    data = answer.model_dump()
+    case = data["case"]
+    case_id = data["case_id"]
+    final_actions = [item["action"] for item in data["next_best_actions"]["final"]]
+    text = (
+        f"Case: {case_id}. Outcome: {case['verdict']}. Status: {case['status']}. "
+        f"Pattern: {case['pattern']}. Exposure: ${case['exposure_usd']:.2f}. "
+        f"Actions: {', '.join(final_actions)}. Summary: {case['summary']}"
+    )
+    metadata = {
+        "case_id": case_id,
+        "customer_id": "",
+        "outcome": case["verdict"],
+        "pattern": case["pattern"],
+        "exposure_usd": case["exposure_usd"],
+        "n_txns": len(case["affected_txn_ids"]),
+        "actions_taken": "|".join(final_actions),
+        "analyst_notes": case["summary"][:400],
+        "source": "investigation_case",
+    }
+    store = get_store()
+    store.upsert(text, metadata)
+    store.save(VECTOR_STORE_PATH)
+    print(f"[GraphRAG] Updated case memory for {case_id}")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -1,99 +1,130 @@
 {
   "case_id": "HHG-007",
   "case": {
-    "status": "open",
+    "status": "closed_fraud",
     "verdict": "fraud",
-    "fraud_probability": 0.87,
-    "pattern": "out_of_region_use",
+    "fraud_probability": 0.95,
+    "pattern": "none",
     "pattern_description": "",
     "affected_txn_ids": [
       "3514948"
     ],
     "first_suspicious_txn_id": "3514948",
     "connected_card_ids": [
-      "C09933",
-      "C09933-K2"
+      "C09933"
     ],
     "connected_device_profiles": [],
     "exposure_usd": 111.92,
     "evidence": [
       {
-        "claim": "The transaction occurred in billing region 264.0, which is not among the customer's usual regions ['469','441','184','226','444','272','433','225','337','204'].",
+        "claim": "Flagged transaction 3514948 was in_person for $111.92; its upstream model risk score was 0.87.",
         "source": "graph",
-        "ref": "query:card_history(C09933)",
+        "ref": "query:get_transaction(txn_id=3514948)",
         "entity_ids": [
-          "C09933",
           "3514948"
         ]
       },
       {
-        "claim": "The transaction amount of $111.92 is close to the customer's average transaction amount of $123.85, but the region mismatch raises concern.",
+        "claim": "Customer C09933 baseline contains 2792 transactions, average amount $123.85, maximum amount $2568.27, usual channels ['in_person', 'online'], and usual regions ['469', '441', '184', '226', '444', '272', '433', '225', '337', '204', '315', '205', '428', '325', '220', '387', '123', '498', '310', '264', '191', '299', '143', '254', '251', '177', '327', '512', '203', '110', '181', '269'].",
         "source": "graph",
-        "ref": "query:card_history(C09933)",
+        "ref": "query:card_baseline(customer_id=C09933)",
         "entity_ids": [
-          "C09933",
-          "3514948"
+          "C09933"
         ]
       },
       {
-        "claim": "The channel is in_person, which matches the customer's usual channels, yet the D1 gap of 106 days and large distance metric (dist1=79) indicate atypical behavior.",
+        "claim": "The 72-hour graph window contains 50 transaction(s) with channel(s) ['in_person', 'online'].",
         "source": "graph",
-        "ref": "query:card_history(C09933)",
+        "ref": "query:card_window(customer_id=C09933, hours=72)",
         "entity_ids": [
-          "C09933",
+          "3505874",
+          "3505901",
+          "3505936",
+          "3506164",
+          "3506216",
+          "3506241",
+          "3506256",
+          "3506455"
+        ]
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5537",
+          "CC-5525",
+          "CC-5504"
+        ]
+      },
+      {
+        "claim": "Simulated customer response (not a real customer statement): 'No, I did not authorize this transaction. Please block my card immediately!'",
+        "source": "customer",
+        "ref": "simulated_customer_response",
+        "entity_ids": [
           "3514948"
         ]
       }
     ],
     "similar_prior_cases": [
-      "CC-2825",
-      "CC-1635",
-      "CC-4495",
-      "CC-4816",
-      "CC-2641"
+      "CC-5537",
+      "CC-5525",
+      "CC-5504"
     ],
-    "summary": "Transaction 3514948 for $111.92 was flagged with a risk score of 0.87. It occurred in region 264, which the customer has never used, matching the out_of_region_use pattern. While the amount and channel are typical for the customer, the region anomaly and long inactivity period increase suspicion, leading to an open uncertain verdict pending verification.",
+    "summary": "Transaction 3514948 ($111.92, in_person) was investigated after an upstream risk score of 0.87. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern none. Recommended actions: CREATE_CASE, BLOCK_CARD.",
     "written_to_graph": true,
     "graph_case_id": "HHG-007"
   },
-  "evidence_requests": [],
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 54,
+      "assumed_response": "No, I did not authorize this transaction. Please block my card immediately!"
+    }
+  ],
   "next_best_actions": {
     "initial": [
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened"
       },
       {
-        "action": "BLOCK_CARD",
-        "route": "L1",
-        "reason": "R2: confirmed unauthorized use"
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: probability < 0.70, verify before blocking"
       }
     ],
     "final": [
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
       },
       {
         "action": "BLOCK_CARD",
         "route": "L1",
-        "reason": "R2: confirmed unauthorized use"
+        "reason": "R2: customer denial established unauthorized use"
       }
     ],
-    "what_changed": "nothing"
+    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
   },
   "sar": {
     "file": false,
-    "reason": "Exposure $111.92 below threshold or verdict not confirmed fraud",
+    "reason": "Rule(s) R2 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Investigation paused pending customer verification; no further action until response.",
-  "tool_calls": 8,
-  "tokens": 20566,
-  "latency_s": 30.3
+  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "tool_calls": 12,
+  "tokens": 5726,
+  "latency_s": 17.3,
+  "qa": {
+    "reviewer_severity": "none",
+    "reviewer_issue_count": 0,
+    "validator_correction_count": 0,
+    "clean": true
+  }
 }

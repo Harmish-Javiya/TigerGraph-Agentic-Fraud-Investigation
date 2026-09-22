@@ -3,55 +3,131 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.5,
+    "fraud_probability": 0.55,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
-      "3583368"
+      "3583368",
+      "3576198",
+      "3576228",
+      "3576269",
+      "3576329",
+      "3576340",
+      "3576468",
+      "3576738",
+      "3576771",
+      "3576872",
+      "3577200",
+      "3577245",
+      "3577287",
+      "3577440",
+      "3577595",
+      "3577647",
+      "3577715",
+      "3578050",
+      "3578107",
+      "3578148",
+      "3578277",
+      "3578340",
+      "3578347",
+      "3578394",
+      "3578405",
+      "3578451",
+      "3578471",
+      "3578475",
+      "3578483",
+      "3578486",
+      "3578491",
+      "3578496",
+      "3578506",
+      "3578817",
+      "3578995",
+      "3578997",
+      "3579400",
+      "3579407",
+      "3579576",
+      "3579597",
+      "3580137",
+      "3580202",
+      "3580219",
+      "3580232",
+      "3580348",
+      "3580380",
+      "3580403",
+      "3580417",
+      "3580427",
+      "3580478",
+      "3580544"
     ],
     "first_suspicious_txn_id": "3583368",
     "connected_card_ids": [
-      "C11923",
-      "C11923-K2"
+      "C11923"
     ],
     "connected_device_profiles": [],
-    "exposure_usd": 131.3,
+    "exposure_usd": 2412.12,
     "evidence": [
       {
-        "claim": "The transaction amount ($131.30) is approximately 3.33 times the average transaction amount ($39.45) for this customer.",
+        "claim": "Flagged transaction 3583368 was online for $131.30; its upstream model risk score was 0.50.",
         "source": "graph",
-        "ref": "query:card_history(C11923)",
+        "ref": "query:get_transaction(txn_id=3583368)",
         "entity_ids": [
-          "C11923",
           "3583368"
         ]
       },
       {
-        "claim": "The customer reported that they never made this $131.30 purchase.",
-        "source": "customer",
-        "ref": "",
+        "claim": "Customer C11923 baseline contains 10361 transactions, average amount $39.45, maximum amount $486.52, usual channels ['online'], and usual regions ['501', '520', '242', '148', '359', '453', '239', '393', '346', '508', '161', '391', '465', '511', '210', '431', '155', '284', '167', '374', '130', '411', '216', '375', '486', '264', '213', '496', '332', '258', '146', '483'].",
+        "source": "graph",
+        "ref": "query:card_baseline(customer_id=C11923)",
         "entity_ids": [
           "C11923"
         ]
       },
       {
-        "claim": "The transaction was made online, which aligns with the customer's usual channels.",
+        "claim": "The 72-hour graph window contains 50 transaction(s) with channel(s) ['online'].",
         "source": "graph",
-        "ref": "query:card_history(C11923)",
+        "ref": "query:card_window(customer_id=C11923, hours=72)",
         "entity_ids": [
-          "C11923",
+          "3576198",
+          "3576228",
+          "3576269",
+          "3576329",
+          "3576340",
+          "3576468",
+          "3576738",
+          "3576771"
+        ]
+      },
+      {
+        "claim": "Device lookup returned profile 'SM-G610F Build/NRD90M|unknown|chrome 66.0 for android|unknown' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
+        "entity_ids": [
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
+        ]
+      },
+      {
+        "claim": "Customer-reported statement: 'I never made this $131.30 purchase. Please check my card.'",
+        "source": "customer",
+        "ref": "trigger_customer_report",
+        "entity_ids": [
           "3583368"
         ]
       }
     ],
     "similar_prior_cases": [
-      "CC-2825",
-      "CC-1632",
-      "CC-0588",
-      "CC-4495",
-      "CC-2021"
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
     ],
-    "summary": "The customer C11923 reported an unrecognized transaction of $131.30 made online using card C11923-K2. The transaction amount is significantly higher than the customer's average transaction amount. The customer claims they did not make this purchase.",
+    "summary": "Transaction 3583368 ($131.30, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.55), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD, FILE_REPORT.",
     "written_to_graph": true,
     "graph_case_id": "HHG-011"
   },
@@ -61,33 +137,60 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "VERIFY_WITH_CUSTOMER",
-        "route": "auto",
-        "reason": "R1: probability < 0.85, verify before blocking"
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "Deterministic policy reason required for BLOCK_CARD"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "Deterministic policy reason required for FILE_REPORT"
       }
     ],
     "final": [
       {
-        "action": "MONITOR_CARD",
+        "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R4: no customer reply within 24h"
+        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: customer denial established unauthorized use"
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R2/§3a: customer denial plus high exposure or validated shared origin requires a report"
       }
     ],
-    "what_changed": "nothing"
+    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
   },
   "sar": {
-    "file": false,
-    "reason": "Exposure $131.30 below threshold or verdict not confirmed fraud",
-    "narrative": "",
-    "subjects": [],
-    "total_amount_usd": 0.0,
-    "activity_dates": []
+    "file": true,
+    "reason": "R2/§3a: customer denial plus high exposure or validated shared origin requires FILE_REPORT.",
+    "narrative": "This report concerns customer C11923 and card C11923-K2. On 2016-12-29, transaction 3583368 was recorded through the online channel for $131.30. The investigation assessed the activity as card_not_present_fraud with fraud probability 0.55. The customer denied authorizing the activity when contacted. A shared device profile links this activity to card(s) C11923. Similar closed case(s) CC-5558 were referenced as case-memory context. The identified suspicious exposure is $2412.12. The institution recommends CREATE_CASE, BLOCK_CARD, FILE_REPORT under the applicable fraud policy approval routes.",
+    "subjects": [
+      "C11923",
+      "C11923-K2"
+    ],
+    "total_amount_usd": 2412.12,
+    "activity_dates": [
+      "2016-12-26",
+      "2016-12-29"
+    ]
   },
-  "stop_reason": "Awaiting customer response to verify the transaction.",
-  "tool_calls": 7,
-  "tokens": 15056,
-  "latency_s": 25.6
+  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "tool_calls": 12,
+  "tokens": 6168,
+  "latency_s": 20.4,
+  "qa": {
+    "reviewer_severity": "critical",
+    "reviewer_issue_count": 1,
+    "validator_correction_count": 1,
+    "clean": false
+  }
 }

@@ -59,20 +59,38 @@ async def _query_mcp(query_name: str, params: dict) -> list:
                 return _parse_mcp_payload(raw)
 
 
+def _describe_exception(e: BaseException) -> str:
+    """asyncio.TaskGroup wraps real failures in an (Base)ExceptionGroup whose
+    default str() is just "unhandled errors in a TaskGroup (N sub-exception)"
+    — useless for debugging. Unwrap and describe the actual sub-exception(s)
+    instead, recursively, so a connection-refused, timeout, or protocol error
+    is visible in the logs rather than hidden behind that summary line.
+    """
+    sub_exceptions = getattr(e, "exceptions", None)
+    if sub_exceptions:
+        return "; ".join(_describe_exception(sub) for sub in sub_exceptions)
+    return f"{type(e).__name__}: {e}"
+
+
 def _run_with_retry(query_name: str, params: dict):
-    """One retry, 2s backoff. Returns (success: bool, data: list)."""
+    """Up to 2 retries (3 attempts total) with increasing backoff. Returns (success: bool, data: list).
+    Bumped from 1 retry after observing the MCP bridge occasionally drop the
+    connection outright (not just individual queries erroring), especially on
+    the first call after being idle."""
     global TOOL_CALLS
     TOOL_CALLS += 1
-    try:
-        return True, asyncio.run(_query_mcp(query_name, params))
-    except Exception as e:
-        print(f"  [MCP retry] {query_name}: {e}")
-        time.sleep(2)
+    last_err = None
+    for attempt in range(3):
         try:
             return True, asyncio.run(_query_mcp(query_name, params))
-        except Exception as e2:
-            print(f"  [MCP FAIL] {query_name}: {e2}")
-            return False, []
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                wait = 2 * (attempt + 1)
+                print(f"  [MCP retry {attempt + 1}/2] {query_name}: {_describe_exception(e)} — waiting {wait}s")
+                time.sleep(wait)
+    print(f"  [MCP FAIL] {query_name}: {_describe_exception(last_err)}")
+    return False, []
 
 
 def _get(query_name: str, params: dict) -> list:
@@ -122,34 +140,59 @@ def card_window(customer_id: str, center_ts: str, hours: int) -> list:
         return [t["attributes"] for t in results[0]["Txns"]]
     return []
 
-def region_neighbors(region_code: str, from_ts: str, days: int) -> list:
+def region_neighbors(region_code: str, from_ts: str, days: int) -> dict:
+    """
+    Transactions billed in this region within `days` of from_ts, plus the
+    cards that made them and any closed cases on those cards — needed so
+    "confirmed fraud on a card sharing this region" can actually be checked
+    against real ClosedCase.outcome data, not fields that don't exist on
+    Transaction.
+    """
+    empty = {"transactions": [], "cards": [], "cases": []}
     results = _get("region_neighbors", {
         "region_code": region_code,
         "from_ts": from_ts,
         "days": days
     })
-    if results and results[0].get("Txns"):
-        return [t["attributes"] for t in results[0]["Txns"]]
-    return []
+    out = dict(empty)
+    for block in results:
+        if "Txns" in block:
+            out["transactions"] = [t["attributes"] for t in block["Txns"]]
+        if "Cards" in block:
+            out["cards"] = [c["attributes"] for c in block["Cards"]]
+        if "Cases" in block:
+            out["cases"] = [c["attributes"] for c in block["Cases"]]
+    return out
 
-def device_neighbors(device_key: str, from_ts: str, days: int) -> list:
+def device_neighbors(device_key: str, from_ts: str, days: int) -> dict:
     """
-    All transactions sharing the same device fingerprint within `days` of
-    from_ts. Used to ground connected_card_ids / connected_device_profiles /
-    shared_origin instead of trusting the LLM's say-so.
-    Requires a `device_neighbors` installed query on the graph, keyed on the
-    same device_key values produced by get_device_key() below.
+    Everything connected to a device within `days` of from_ts: the
+    transactions made from it, the cards that made them (via the Card
+    -(MADE)-> Transaction edge — Transaction itself has no card_id
+    attribute), the customers who own those cards, and any closed cases on
+    those cards. Used to ground connected_card_ids / connected_device_profiles
+    / shared_origin / coordinated_across_customers instead of trusting the
+    LLM's say-so or reading fields that don't exist on Transaction.
     """
+    empty = {"transactions": [], "cards": [], "customers": [], "cases": []}
     if not device_key:
-        return []
+        return empty
     results = _get("device_neighbors", {
         "device_key": device_key,
         "from_ts": from_ts,
         "days": days
     })
-    if results and results[0].get("Txns"):
-        return [t["attributes"] for t in results[0]["Txns"]]
-    return []
+    out = dict(empty)
+    for block in results:
+        if "Txns" in block:
+            out["transactions"] = [t["attributes"] for t in block["Txns"]]
+        if "Cards" in block:
+            out["cards"] = [c["attributes"] for c in block["Cards"]]
+        if "Customers" in block:
+            out["customers"] = [c["attributes"] for c in block["Customers"]]
+        if "Cases" in block:
+            out["cases"] = [c["attributes"] for c in block["Cases"]]
+    return out
 
 def similar_closed_cases(pattern_name: str, customer_id: str) -> dict:
     results = _get("similar_closed_cases", {
@@ -230,6 +273,29 @@ def write_investigation_case(
         "pattern": pattern,
         "exposure_usd": exposure_usd,
         "summary": summary,
+    })
+
+
+def write_investigation_event(
+    case_id: str,
+    event_id: str,
+    event_type: str,
+    payload: str,
+    created_at: str,
+) -> bool:
+    """Persist an append-only audit event attached to an InvestigationCase.
+
+    The accompanying `gsql/investigation_lifecycle.gsql` file defines this
+    installed query.  Events make evidence, recommendation changes, and the
+    final decision queryable in TigerGraph instead of leaving them only in the
+    exported JSON case file.
+    """
+    return _execute("write_investigation_event", {
+        "case_id": case_id,
+        "event_id": event_id,
+        "event_type": event_type,
+        "payload": payload,
+        "created_at": created_at,
     })
 
 

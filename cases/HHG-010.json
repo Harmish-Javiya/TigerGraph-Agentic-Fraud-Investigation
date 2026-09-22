@@ -1,7 +1,7 @@
 {
   "case_id": "HHG-010",
   "case": {
-    "status": "open",
+    "status": "closed_fraud",
     "verdict": "fraud",
     "fraud_probability": 0.9,
     "pattern": "card_not_present_fraud",
@@ -10,39 +10,59 @@
       "3506725"
     ],
     "first_suspicious_txn_id": "3506725",
-    "connected_card_ids": [],
+    "connected_card_ids": [
+      "C10434"
+    ],
     "connected_device_profiles": [],
     "exposure_usd": 1000.03,
     "evidence": [
       {
-        "claim": "Transaction 3506725 was flagged with a high risk score of 0.9, indicating a strong likelihood of fraud.",
-        "source": "document",
-        "ref": "risk_model",
+        "claim": "Flagged transaction 3506725 was online for $1000.03; its upstream model risk score was 0.90.",
+        "source": "graph",
+        "ref": "query:get_transaction(txn_id=3506725)",
         "entity_ids": [
           "3506725"
         ]
       },
       {
-        "claim": "The transaction amount of $1,000.03 is unusually high for a new account with no prior transaction history (customer C10434).",
-        "source": "document",
-        "ref": "customer_profile",
+        "claim": "Customer C10434 baseline contains 36 transactions, average amount $153.87, maximum amount $1000.03, usual channels ['in_person', 'online'], and usual regions ['330', '272', '220', '469', '418', '204'].",
+        "source": "graph",
+        "ref": "query:card_baseline(customer_id=C10434)",
         "entity_ids": [
-          "C10434",
+          "C10434"
+        ]
+      },
+      {
+        "claim": "The 72-hour graph window contains 1 transaction(s) with channel(s) ['online'].",
+        "source": "graph",
+        "ref": "query:card_window(customer_id=C10434, hours=72)",
+        "entity_ids": [
           "3506725"
         ]
       },
       {
-        "claim": "No prior transactions or known usage patterns exist for card C10434-K1, making the online transaction atypical.",
-        "source": "document",
-        "ref": "card_history",
+        "claim": "Device lookup returned profile 'Windows|Windows 10|edge 16.0|1366x768' and 0 other card(s) in its configured graph-neighbor window.",
+        "source": "graph",
+        "ref": "query:device_neighbors",
+        "entity_ids": []
+      },
+      {
+        "claim": "Retrieved 3 similar closed case(s) for case-memory comparison.",
+        "source": "graph",
+        "ref": "query:similar_closed_cases",
         "entity_ids": [
-          "C10434-K1",
-          "3506725"
+          "CC-5558",
+          "CC-5557",
+          "CC-5553"
         ]
       }
     ],
-    "similar_prior_cases": [],
-    "summary": "Transaction 3506725 for $1,000.03 was flagged with a risk score of 0.9. The customer C10434 has no prior transaction history, and the card C10434-K1 has no established usage patterns. Given the high amount and lack of baseline, the case remains uncertain and requires further verification.",
+    "similar_prior_cases": [
+      "CC-5558",
+      "CC-5557",
+      "CC-5553"
+    ],
+    "summary": "Transaction 3506725 ($1000.03, online) was investigated after an upstream risk score of 0.90. No customer response was recorded. Final assessment: fraud (P=0.90), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, MONITOR_CARD.",
     "written_to_graph": true,
     "graph_case_id": "HHG-010"
   },
@@ -52,49 +72,44 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened"
       },
       {
-        "action": "BLOCK_CARD",
-        "route": "L1",
-        "reason": "R2: confirmed unauthorized use"
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "Evidence does not establish a deterministic policy predicate"
       }
     ],
     "final": [
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "R2: fraud confirmed, opening case"
+        "reason": "§3a: investigation warranted, case opened"
       },
       {
-        "action": "BLOCK_CARD",
-        "route": "L1",
-        "reason": "R2: confirmed unauthorized use"
-      },
-      {
-        "action": "FILE_REPORT",
-        "route": "L2",
-        "reason": "R2/R6: confirmed fraud with shared origin or high exposure"
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "Evidence does not establish a deterministic policy predicate"
       }
     ],
     "what_changed": "nothing"
   },
   "sar": {
-    "file": true,
-    "reason": "R2/R6: card_not_present_fraud confirmed",
-    "narrative": "On December 2 2016, a transaction identified as 3506725 was processed on card C10434‑K1 belonging to customer C10434. The transaction amount was $1,000.03 and it was flagged with a risk score of 0.9 under the card‑not‑present fraud pattern. The transaction was conducted through an unknown channel, and no geographic region could be determined. Customer C10434 and card C10434‑K1 have no prior transaction history or established usage patterns in the institution’s records. Because the card was not present, the transaction could have been initiated remotely, which aligns with the identified fraud pattern. The high dollar amount, combined with the absence of a baseline of normal activity for both the customer and the card, raises significant suspicion. No other cards are linked to customer C10434, eliminating the possibility of legitimate intra‑customer activity. Accordingly, the case remains uncertain and warrants further verification and investigation.",
-    "subjects": [
-      "C10434",
-      "C10434-K1"
-    ],
-    "total_amount_usd": 1000.03,
-    "activity_dates": [
-      "2016-12-02",
-      "2016-12-02"
-    ]
+    "file": false,
+    "reason": "No deterministic policy rule was applied that establishes a FILE_REPORT condition.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
   },
-  "stop_reason": "Investigation paused pending customer verification to confirm legitimacy of the transaction.",
+  "stop_reason": "§6 stopping threshold met: 2 independent indicators support a fraud verdict (P=0.9).",
   "tool_calls": 13,
-  "tokens": 18172,
-  "latency_s": 91.4
+  "tokens": 4722,
+  "latency_s": 24.8,
+  "qa": {
+    "reviewer_severity": "none",
+    "reviewer_issue_count": 0,
+    "validator_correction_count": 0,
+    "clean": true
+  }
 }

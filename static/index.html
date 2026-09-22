@@ -8,7 +8,7 @@
   :root {
     --bg: #0f1420; --panel: #161d2e; --border: #26304a; --text: #e6ebf5;
     --muted: #8b96af; --accent: #4f8cff; --green: #35c98f; --red: #ef5a6f;
-    --amber: #f0b429;
+    --amber: #f0b429; --purple: #a685ff;
   }
   * { box-sizing: border-box; }
   body {
@@ -18,14 +18,21 @@
   header {
     padding: 20px 28px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
   }
   header h1 { font-size: 18px; margin: 0; font-weight: 600; }
   header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .controls { display: flex; gap: 10px; align-items: center; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type="text"], select {
+    background: #0b0f19; border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  }
   button {
     background: var(--accent); color: white; border: none; border-radius: 8px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: filter .15s;
   }
+  button:hover { filter: brightness(1.1); }
   button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   #progress-wrap { display: none; padding: 14px 28px; border-bottom: 1px solid var(--border); }
@@ -39,25 +46,72 @@
   main { padding: 20px 28px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  tr:hover { background: rgba(255,255,255,0.02); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+       cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: var(--text); }
+  th .sort-arrow { font-size: 9px; margin-left: 3px; opacity: .6; }
+  tr.case-row { cursor: pointer; }
+  tr.case-row:hover { background: rgba(255,255,255,0.03); }
+  tr.case-row.selected { background: rgba(79,140,255,0.08); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .b-fraud { background: rgba(239,90,111,0.15); color: var(--red); }
   .b-legit { background: rgba(53,201,143,0.15); color: var(--green); }
   .b-uncertain { background: rgba(240,180,41,0.15); color: var(--amber); }
   .b-run { background: rgba(79,140,255,0.15); color: var(--accent); }
   .b-fail { background: rgba(239,90,111,0.15); color: var(--red); }
+  .b-qa-clean { background: rgba(53,201,143,0.15); color: var(--green); }
+  .b-qa-warning { background: rgba(240,180,41,0.15); color: var(--amber); }
+  .b-qa-critical { background: rgba(239,90,111,0.15); color: var(--red); }
   .sar-yes { color: var(--red); font-weight: 600; }
   .sar-no { color: var(--muted); }
   .row-btn { padding: 5px 10px; font-size: 12px; }
-  pre {
-    background: #0b0f19; border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px; font-size: 12px; overflow: auto; max-height: 420px;
-  }
+  .conf-bar-bg { width: 60px; height: 6px; background: #1f2740; border-radius: 4px; display: inline-block; vertical-align: middle; overflow: hidden; margin-right: 6px; }
+  .conf-bar { height: 100%; background: var(--accent); }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
   .case-detail { display: none; }
   .case-detail.open { display: table-row; }
-  .case-detail td { background: #0d1220; }
+  .case-detail td { background: #0d1220; padding: 0; }
+  .detail-inner { padding: 16px 20px 20px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+  .tab-btn {
+    background: transparent; border: none; color: var(--muted); font-weight: 600;
+    font-size: 12px; padding: 9px 14px; border-radius: 8px 8px 0 0; cursor: pointer;
+  }
+  .tab-btn.active { color: var(--text); background: #101727; border: 1px solid var(--border); border-bottom-color: #101727; margin-bottom: -1px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .detail-section { border: 1px solid var(--border); border-radius: 8px; padding: 13px; background: #101727; }
+  .detail-section h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .timeline { list-style: none; padding: 0; margin: 0; }
+  .timeline li { border-left: 2px solid var(--accent); padding: 0 0 12px 12px; margin-left: 5px; font-size: 12px; }
+  .timeline li:last-child { padding-bottom: 0; }
+  .action { border-top: 1px solid var(--border); padding: 8px 0; font-size: 12px; }
+  .action:first-child { border-top: 0; padding-top: 0; }
+  .route { color: var(--accent); font-weight: 600; margin-left: 6px; }
+  .evidence { border-top: 1px solid var(--border); padding: 8px 0; font-size: 12px; line-height: 1.45; }
+  .evidence:first-child { border-top: 0; padding-top: 0; }
+  .evidence-meta { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .detail-section p { font-size: 12px; line-height: 1.45; margin: 0 0 8px; }
+  .qa-note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
+  /* JSON tree viewer */
+  .jtree { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; }
+  .jtree .jkey { color: #7fb7ff; }
+  .jtree .jstr { color: #b7e0a8; }
+  .jtree .jnum { color: #f0b429; }
+  .jtree .jbool { color: var(--purple); }
+  .jtree .jnull { color: var(--muted); }
+  .jtree .jtoggle { cursor: pointer; color: var(--muted); display: inline-block; width: 12px; user-select: none; }
+  .jtree .jtoggle:hover { color: var(--text); }
+  .jtree ul { list-style: none; margin: 0; padding-left: 18px; }
+  .jtree li { position: relative; }
+  .jtree .jcollapsed > ul { display: none; }
+  .json-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  .json-toolbar button { padding: 5px 10px; font-size: 11px; }
+  .copy-toast { position: fixed; bottom: 20px; right: 20px; background: var(--green); color: #04231a;
+    padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .copy-toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -68,8 +122,14 @@
     <div class="sub">GraphRAG + policy-engine case investigator</div>
   </div>
   <div class="controls">
-    <input id="manual-case-id" type="text" placeholder="Case ID e.g. HHG-012"
-           style="background:#0b0f19; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px; font-size:13px; width:160px;">
+    <input id="search-box" type="text" placeholder="Search case, pattern, verdict…" style="width:200px;">
+    <select id="verdict-filter">
+      <option value="">All verdicts</option>
+      <option value="fraud">Fraud</option>
+      <option value="legitimate">Legitimate</option>
+      <option value="uncertain">Uncertain</option>
+    </select>
+    <input id="manual-case-id" type="text" placeholder="Case ID e.g. HHG-012" style="width:150px;">
     <button class="secondary" id="manual-run-btn">Run case</button>
     <button class="secondary" id="refresh-btn">Refresh</button>
     <button id="run-all-btn">Run all cases</button>
@@ -86,30 +146,46 @@
   <table id="cases-table">
     <thead>
       <tr>
-        <th>Case</th>
-        <th>Status</th>
-        <th>Verdict</th>
-        <th>Pattern</th>
-        <th>Fraud Prob.</th>
-        <th>Exposure</th>
-        <th>SAR</th>
-        <th>Tool calls</th>
+        <th data-sort="case_id">Case</th>
+        <th data-sort="status">Status</th>
+        <th data-sort="verdict">Verdict</th>
+        <th data-sort="pattern">Pattern</th>
+        <th data-sort="confidence">Confidence</th>
+        <th data-sort="exposure">Exposure</th>
+        <th data-sort="sar">SAR</th>
+        <th data-sort="qa">QA</th>
+        <th data-sort="tool_calls">Tool calls</th>
         <th></th>
       </tr>
     </thead>
     <tbody id="cases-body">
-      <tr><td colspan="9" class="empty">Loading cases…</td></tr>
+      <tr><td colspan="10" class="empty">Loading cases…</td></tr>
     </tbody>
   </table>
 </main>
 
+<div class="copy-toast" id="copy-toast">Copied JSON</div>
+
 <script>
-const state = { cases: {}, jobId: null, pollTimer: null };
+const state = { cases: {}, jobId: null, pollTimer: null, sortKey: "case_id", sortDir: 1, openId: null, search: "", verdictFilter: "" };
 
 function badgeForVerdict(v) {
   if (!v) return `<span class="badge b-run">pending</span>`;
   const cls = v === "fraud" ? "b-fraud" : v === "legitimate" ? "b-legit" : "b-uncertain";
   return `<span class="badge ${cls}">${v}</span>`;
+}
+
+function badgeForQA(qa) {
+  if (!qa) return `<span class="badge b-qa-clean">n/a</span>`;
+  const sev = qa.reviewer_severity || "none";
+  const cls = qa.clean ? "b-qa-clean" : sev === "critical" ? "b-qa-critical" : "b-qa-warning";
+  const label = qa.clean ? "clean" : `${qa.validator_correction_count} fixed`;
+  return `<span class="badge ${cls}" title="Reviewer severity: ${sev}, ${qa.reviewer_issue_count} issue(s) flagged, ${qa.validator_correction_count} correction(s) applied">${label}</span>`;
+}
+
+function confidenceHtml(p) {
+  const pct = Math.round((p ?? 0) * 100);
+  return `<span class="conf-bar-bg"><span class="conf-bar" style="width:${pct}%"></span></span>${pct}%`;
 }
 
 function fmtMoney(n) {
@@ -125,46 +201,255 @@ async function fetchCases() {
   render();
 }
 
+function matchesFilters(ans) {
+  const c = ans.case || {};
+  if (state.verdictFilter && c.verdict !== state.verdictFilter) return false;
+  if (state.search) {
+    const hay = `${ans.case_id} ${c.pattern} ${c.verdict} ${c.status}`.toLowerCase();
+    if (!hay.includes(state.search.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function sortValue(ans, key) {
+  const c = ans.case || {};
+  switch (key) {
+    case "case_id": return ans.case_id || "";
+    case "status": return c.status || "";
+    case "verdict": return c.verdict || "";
+    case "pattern": return c.pattern || "";
+    case "confidence": return c.fraud_probability ?? 0;
+    case "exposure": return c.exposure_usd ?? 0;
+    case "sar": return ans.sar?.file ? 1 : 0;
+    case "qa": return ans.qa?.clean ? 0 : 1;
+    case "tool_calls": return ans.tool_calls ?? 0;
+    default: return "";
+  }
+}
+
 function render() {
   const body = document.getElementById("cases-body");
-  const ids = Object.keys(state.cases).sort();
-  if (ids.length === 0) {
-    body.innerHTML = `<tr><td colspan="9" class="empty">No cases run yet. Click "Run all cases" to start.</td></tr>`;
+  let rows = Object.values(state.cases).filter(matchesFilters);
+  rows.sort((a, b) => {
+    const av = sortValue(a, state.sortKey), bv = sortValue(b, state.sortKey);
+    if (av < bv) return -1 * state.sortDir;
+    if (av > bv) return 1 * state.sortDir;
+    return 0;
+  });
+  if (rows.length === 0) {
+    body.innerHTML = `<tr><td colspan="10" class="empty">No cases match. Try clearing search/filter, or click "Run all cases".</td></tr>`;
     return;
   }
-  body.innerHTML = ids.map(id => rowHtml(state.cases[id])).join("");
+  body.innerHTML = rows.map(rowHtml).join("");
+  updateSortIndicators();
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll("th[data-sort]").forEach(th => {
+    const key = th.dataset.sort;
+    th.querySelector(".sort-arrow")?.remove();
+    if (key === state.sortKey) {
+      const arrow = document.createElement("span");
+      arrow.className = "sort-arrow";
+      arrow.textContent = state.sortDir === 1 ? "▲" : "▼";
+      th.appendChild(arrow);
+    }
+  });
 }
 
 function rowHtml(ans) {
   const c = ans.case;
   const sar = ans.sar && ans.sar.file;
+  const isOpen = state.openId === ans.case_id;
   return `
-    <tr>
+    <tr class="case-row ${isOpen ? 'selected' : ''}" onclick="toggleDetail('${ans.case_id}')">
       <td><strong>${ans.case_id}</strong></td>
       <td>${c.status}</td>
       <td>${badgeForVerdict(c.verdict)}</td>
       <td>${c.pattern}</td>
-      <td>${(c.fraud_probability ?? 0).toFixed(2)}</td>
+      <td>${confidenceHtml(c.fraud_probability)}</td>
       <td>${fmtMoney(c.exposure_usd)}</td>
       <td class="${sar ? 'sar-yes' : 'sar-no'}">${sar ? "Filed" : "No"}</td>
+      <td>${badgeForQA(ans.qa)}</td>
       <td>${ans.tool_calls ?? "-"}</td>
       <td>
-        <button class="secondary row-btn" onclick="toggleDetail('${ans.case_id}')">Details</button>
-        <button class="row-btn" onclick="runCase('${ans.case_id}')">Re-run</button>
+        <button class="secondary row-btn" onclick="event.stopPropagation(); toggleDetail('${ans.case_id}')">Details</button>
+        <button class="row-btn" onclick="event.stopPropagation(); runCase('${ans.case_id}')">Re-run</button>
       </td>
     </tr>
-    <tr class="case-detail" id="detail-${ans.case_id}">
-      <td colspan="9"><pre>${escapeHtml(JSON.stringify(ans, null, 2))}</pre></td>
+    <tr class="case-detail ${isOpen ? 'open' : ''}" id="detail-${ans.case_id}">
+      <td colspan="10">${isOpen ? caseDetailHtml(ans) : ""}</td>
     </tr>
   `;
 }
 
 function escapeHtml(s) {
-  return s.replace(/[&<>]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+  return String(s ?? "-").replace(/[&<>]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+}
+
+function safe(v) { return escapeHtml(v); }
+
+function actionHtml(actions) {
+  if (!actions?.length) return `<span class="sar-no">None recorded</span>`;
+  return actions.map(a => `<div class="action"><strong>${safe(a.action)}</strong><span class="route">${safe(a.route)}</span><div class="evidence-meta">${safe(a.reason)}</div></div>`).join("");
+}
+
+function evidenceHtml(items) {
+  if (!items?.length) return `<span class="sar-no">No evidence recorded</span>`;
+  return items.map(e => `<div class="evidence">${safe(e.claim)}<div class="evidence-meta">${safe(e.source)} · ${safe(e.ref)}${e.entity_ids?.length ? ` · ${safe(e.entity_ids.join(", "))}` : ""}</div></div>`).join("");
+}
+
+// ---- Collapsible JSON tree renderer ----
+function jsonNode(value, key) {
+  const li = document.createElement("li");
+  if (Array.isArray(value) || (value && typeof value === "object")) {
+    const isArr = Array.isArray(value);
+    const entries = isArr ? value.map((v, i) => [i, v]) : Object.entries(value);
+    const toggle = document.createElement("span");
+    toggle.className = "jtoggle";
+    toggle.textContent = "▾";
+    li.appendChild(toggle);
+    if (key !== undefined) {
+      const k = document.createElement("span");
+      k.className = "jkey";
+      k.textContent = `${key}: `;
+      li.appendChild(k);
+    }
+    const bracket = document.createElement("span");
+    bracket.style.color = "#8b96af";
+    bracket.textContent = isArr ? `[${entries.length}]` : `{${entries.length}}`;
+    li.appendChild(bracket);
+    const ul = document.createElement("ul");
+    entries.forEach(([k, v]) => ul.appendChild(jsonNode(v, k)));
+    li.appendChild(ul);
+    toggle.addEventListener("click", () => {
+      li.classList.toggle("jcollapsed");
+      toggle.textContent = li.classList.contains("jcollapsed") ? "▸" : "▾";
+    });
+  } else {
+    if (key !== undefined) {
+      const k = document.createElement("span");
+      k.className = "jkey";
+      k.textContent = `${key}: `;
+      li.appendChild(k);
+    }
+    const v = document.createElement("span");
+    if (typeof value === "string") { v.className = "jstr"; v.textContent = `"${value}"`; }
+    else if (typeof value === "number") { v.className = "jnum"; v.textContent = value; }
+    else if (typeof value === "boolean") { v.className = "jbool"; v.textContent = value; }
+    else { v.className = "jnull"; v.textContent = "null"; }
+    li.appendChild(v);
+  }
+  return li;
+}
+
+function renderJsonTree(container, data) {
+  container.innerHTML = "";
+  const root = document.createElement("ul");
+  root.className = "jtree";
+  root.appendChild(jsonNode(data));
+  container.appendChild(root);
+}
+
+function copyJson(caseId) {
+  const ans = state.cases[caseId];
+  navigator.clipboard?.writeText(JSON.stringify(ans, null, 2));
+  const toast = document.getElementById("copy-toast");
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1400);
+}
+
+function switchTab(caseId, tabName) {
+  const wrap = document.getElementById(`detail-${caseId}`);
+  wrap.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tabName));
+  wrap.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.dataset.panel === tabName));
+}
+
+function caseDetailHtml(ans) {
+  const c = ans.case || {};
+  const reqs = ans.evidence_requests || [];
+  const sarText = ans.sar?.file ? safe(ans.sar.reason) : "No SAR required";
+  const qa = ans.qa || { reviewer_severity: "none", reviewer_issue_count: 0, validator_correction_count: 0, clean: true };
+
+  return `<div class="detail-inner">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview" onclick="switchTab('${ans.case_id}','overview')">Overview</button>
+      <button class="tab-btn" data-tab="evidence" onclick="switchTab('${ans.case_id}','evidence')">Evidence</button>
+      <button class="tab-btn" data-tab="actions" onclick="switchTab('${ans.case_id}','actions')">Actions</button>
+      <button class="tab-btn" data-tab="sar" onclick="switchTab('${ans.case_id}','sar')">SAR</button>
+      <button class="tab-btn" data-tab="qa" onclick="switchTab('${ans.case_id}','qa')">QA</button>
+      <button class="tab-btn" data-tab="raw" onclick="switchTab('${ans.case_id}','raw')">Raw JSON</button>
+    </div>
+
+    <div class="tab-panel active" data-panel="overview">
+      <div class="detail-grid">
+        <section class="detail-section"><h3>Investigation timeline</h3><ol class="timeline">
+          <li><strong>Trigger</strong><br>${safe(ans.case_id)} opened for review</li>
+          <li><strong>Evidence gathered</strong><br>${c.evidence?.length || 0} evidence item(s), ${reqs.length} evidence request(s)</li>
+          <li><strong>Assessment</strong><br>${safe(c.verdict)} at confidence ${confidenceHtml(c.fraud_probability)}; pattern: ${safe(c.pattern)}</li>
+          <li><strong>Decision</strong><br>${safe(c.status)} · ${sarText}</li>
+        </ol></section>
+        <section class="detail-section"><h3>Decision rationale</h3><p>${safe(c.summary)}</p><p><strong>Stop reason:</strong> ${safe(ans.stop_reason)}</p><p><strong>Graph case:</strong> ${c.written_to_graph ? safe(c.graph_case_id) : "Not written"}</p></section>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="evidence">
+      <div class="detail-grid">
+        <section class="detail-section"><h3>Evidence</h3>${evidenceHtml(c.evidence)}</section>
+        <section class="detail-section"><h3>Evidence requests</h3>${reqs.length ? reqs.map(r => `<div class="evidence"><strong>${safe(r.type)}</strong><div class="evidence-meta">Step ${safe(r.asked_after_step)} · ${safe(r.assumed_response)}</div></div>`).join("") : `<span class="sar-no">None required</span>`}</section>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="actions">
+      <div class="detail-grid">
+        <section class="detail-section"><h3>Actions before evidence</h3>${actionHtml(ans.next_best_actions?.initial)}</section>
+        <section class="detail-section"><h3>Actions after evidence</h3>${actionHtml(ans.next_best_actions?.final)}<p class="evidence-meta">${safe(ans.next_best_actions?.what_changed)}</p></section>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="sar">
+      <div class="detail-grid">
+        <section class="detail-section"><h3>SAR</h3>
+          <p><strong>Filed:</strong> ${ans.sar?.file ? "Yes" : "No"}</p>
+          <p><strong>Reason:</strong> ${sarText}</p>
+          ${ans.sar?.file ? `<p><strong>Narrative:</strong> ${safe(ans.sar.narrative)}</p>
+          <p><strong>Subjects:</strong> ${safe((ans.sar.subjects || []).join(", "))}</p>
+          <p><strong>Total amount:</strong> ${fmtMoney(ans.sar.total_amount_usd)}</p>
+          <p><strong>Activity dates:</strong> ${safe((ans.sar.activity_dates || []).join(" to "))}</p>` : ""}
+        </section>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="qa">
+      <div class="detail-grid">
+        <section class="detail-section"><h3>QA — reviewer &amp; validator</h3>
+          <p><strong>Reviewer severity:</strong> ${badgeForQA(qa)}</p>
+          <p><strong>Reviewer issues flagged:</strong> ${qa.reviewer_issue_count}</p>
+          <p><strong>Validator corrections applied:</strong> ${qa.validator_correction_count}</p>
+          <div class="qa-note">This is not a fraud-classification accuracy score — the benchmark
+          case pack has no ground-truth labels, so accuracy can't be measured. This only reflects
+          whether the LLM #2 reviewer flagged anything and whether the deterministic final
+          validator had to correct this specific case before it was saved.</div>
+        </section>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="raw">
+      <div class="json-toolbar">
+        <button class="secondary" onclick="copyJson('${ans.case_id}')">Copy JSON</button>
+      </div>
+      <div id="jsontree-${ans.case_id}"></div>
+    </div>
+  </div>`;
 }
 
 function toggleDetail(id) {
-  document.getElementById(`detail-${id}`).classList.toggle("open");
+  state.openId = state.openId === id ? null : id;
+  render();
+  if (state.openId === id) {
+    const container = document.getElementById(`jsontree-${id}`);
+    if (container) renderJsonTree(container, state.cases[id]);
+  }
 }
 
 async function runCase(caseId) {
@@ -236,6 +521,16 @@ document.getElementById("run-all-btn").addEventListener("click", runAll);
 document.getElementById("manual-run-btn").addEventListener("click", () => {
   const id = document.getElementById("manual-case-id").value.trim();
   if (id) runCase(id);
+});
+document.getElementById("search-box").addEventListener("input", (e) => { state.search = e.target.value; render(); });
+document.getElementById("verdict-filter").addEventListener("change", (e) => { state.verdictFilter = e.target.value; render(); });
+document.querySelectorAll("th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (state.sortKey === key) state.sortDir *= -1;
+    else { state.sortKey = key; state.sortDir = 1; }
+    render();
+  });
 });
 
 fetchCases();

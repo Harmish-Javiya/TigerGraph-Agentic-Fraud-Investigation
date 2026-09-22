@@ -2,6 +2,7 @@
   "success": [
     "HHG-001",
     "HHG-002",
+    "HHG-003",
     "HHG-004",
     "HHG-005",
     "HHG-006",
@@ -20,10 +21,5 @@
     "HHG-019",
     "HHG-020"
   ],
-  "failed": [
-    {
-      "case_id": "HHG-003",
-      "error": "Error code: 413 - {'error': {'message': 'Request Entity Too Large', 'type': 'invalid_request_error', 'code': 'request_too_large'}}"
-    }
-  ]
+  "failed": []
 }
