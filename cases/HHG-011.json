@@ -3,7 +3,7 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.55,
+    "fraud_probability": 0.6,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -60,9 +60,7 @@
       "3580544"
     ],
     "first_suspicious_txn_id": "3583368",
-    "connected_card_ids": [
-      "C11923"
-    ],
+    "connected_card_ids": [],
     "connected_device_profiles": [],
     "exposure_usd": 2412.12,
     "evidence": [
@@ -127,7 +125,9 @@
       "CC-5557",
       "CC-5553"
     ],
-    "summary": "Transaction 3583368 ($131.30, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.55), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD, FILE_REPORT.",
+    "summary": "Transaction 3583368 ($131.30, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.60), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD, FILE_REPORT.",
+    "probability_rationale": "The fraud probability of 0.55 and uncertain verdict were chosen because the customer disputed the $131.30 online transaction 3583368, but exposure remains below the $1000 threshold required for an automatic block under policy R1.",
+    "decision_mechanics": "The fraud score is 60%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 2 separate supporting facts: amount anomaly versus baseline, customer denial. The customer said they did not make the transaction. Policy checks used: R2, R2-sar.",
     "written_to_graph": true,
     "graph_case_id": "HHG-011"
   },
@@ -172,7 +172,7 @@
   "sar": {
     "file": true,
     "reason": "R2/§3a: customer denial plus high exposure or validated shared origin requires FILE_REPORT.",
-    "narrative": "This report concerns customer C11923 and card C11923-K2. On 2016-12-29, transaction 3583368 was recorded through the online channel for $131.30. The investigation assessed the activity as card_not_present_fraud with fraud probability 0.55. The customer denied authorizing the activity when contacted. A shared device profile links this activity to card(s) C11923. Similar closed case(s) CC-5558 were referenced as case-memory context. The identified suspicious exposure is $2412.12. The institution recommends CREATE_CASE, BLOCK_CARD, FILE_REPORT under the applicable fraud policy approval routes.",
+    "narrative": "This report concerns customer C11923 and card C11923-K2. On 2016-12-29, transaction 3583368 was recorded through the online channel for $131.30. The investigation assessed the activity as card_not_present_fraud with fraud probability 0.60. The customer denied authorizing the activity when contacted. Similar closed case(s) HHG-020, HHG-005, CC-5558 were referenced as case-memory context. The identified suspicious exposure is $2412.12. The institution recommends CREATE_CASE, BLOCK_CARD, FILE_REPORT under the applicable fraud policy approval routes.",
     "subjects": [
       "C11923",
       "C11923-K2"
@@ -183,13 +183,13 @@
       "2016-12-29"
     ]
   },
-  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "stop_reason": "Investigation remains open because additional evidence is needed before a defensible decision.",
   "tool_calls": 12,
-  "tokens": 6168,
-  "latency_s": 20.4,
+  "tokens": 6627,
+  "latency_s": 85.7,
   "qa": {
     "reviewer_severity": "critical",
-    "reviewer_issue_count": 1,
+    "reviewer_issue_count": 3,
     "validator_correction_count": 1,
     "clean": false
   }

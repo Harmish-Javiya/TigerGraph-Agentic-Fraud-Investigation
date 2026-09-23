@@ -1,0 +1,14 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY region_neighbors(STRING region_code, DATETIME from_ts, INT days) FOR GRAPH fraud_investigation {
+  DATETIME end_ts = datetime_add(from_ts, INTERVAL days DAY);
+  Seed = {BillingRegion.*};
+  Txns = SELECT t FROM Seed:r -(<BILLED_IN)- Transaction:t
+         WHERE r.region_code == region_code
+           AND t.ts >= from_ts
+           AND t.ts <= end_ts
+         LIMIT 100;
+  PRINT Txns;
+}
+
+INSTALL QUERY region_neighbors

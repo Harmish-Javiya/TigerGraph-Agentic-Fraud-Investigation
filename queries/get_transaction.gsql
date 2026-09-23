@@ -1,0 +1,9 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY get_transaction(STRING txn_id) FOR GRAPH fraud_investigation {
+  Seed = {Transaction.*};
+  Result = SELECT t FROM Seed:t WHERE t.txn_id == txn_id;
+  PRINT Result;
+}
+
+INSTALL QUERY get_transaction

@@ -1,0 +1,16 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY card_window(STRING customer_id, DATETIME center_ts, INT hours) FOR GRAPH fraud_investigation {
+  DATETIME start_ts = datetime_sub(center_ts, INTERVAL hours HOUR);
+  DATETIME end_ts = datetime_add(center_ts, INTERVAL hours HOUR);
+  Seed = {Customer.*};
+  Cards = SELECT c FROM Seed:cu -(OWNS)-> Card:c
+          WHERE cu.customer_id == customer_id;
+  Txns = SELECT t FROM Cards:c -(MADE)-> Transaction:t
+         WHERE t.ts >= start_ts AND t.ts <= end_ts
+         ORDER BY t.ts ASC
+         LIMIT 50;
+  PRINT Txns;
+}
+
+INSTALL QUERY card_window

@@ -1,0 +1,53 @@
+-- ============================================================
+-- NOTE: The original per-transaction card_history query (below,
+-- commented out) reliably caused
+--   "MCPError: SSE stream ended without a response"
+-- on any customer with more than a handful of transactions —
+-- the MCP streamable-HTTP transport times out before a few
+-- hundred full transaction objects can be serialized back.
+--
+-- It was replaced with card_baseline, which aggregates in GSQL
+-- and returns five scalars/sets instead of raw rows. This is
+-- the query graph_client.py's card_baseline() function actually
+-- calls. Keeping both here for reference.
+-- ============================================================
+
+/*
+CREATE QUERY card_history(STRING customer_id) FOR GRAPH fraud_investigation {
+  Seed = {Customer.*};
+  Cards = SELECT c FROM Seed:cu -(OWNS)-> Card:c
+          WHERE cu.customer_id == customer_id;
+  Txns = SELECT t FROM Cards:c -(MADE)-> Transaction:t
+         ORDER BY t.ts ASC;
+  PRINT Txns;
+}
+INSTALL QUERY card_history
+*/
+
+USE GRAPH fraud_investigation
+
+CREATE QUERY card_baseline(STRING customer_id) FOR GRAPH fraud_investigation {
+  SumAccum<INT> @@total_txns;
+  SumAccum<DOUBLE> @@sum_amount;
+  MaxAccum<DOUBLE> @@max_amount;
+  SetAccum<STRING> @@channels;
+  SetAccum<DOUBLE> @@regions;
+
+  Seed = {Customer.*};
+  Cards = SELECT c FROM Seed:cu -(OWNS)-> Card:c
+          WHERE cu.customer_id == customer_id;
+  Txns = SELECT t FROM Cards:c -(MADE)-> Transaction:t
+         ACCUM @@total_txns += 1,
+               @@sum_amount += t.amount,
+               @@max_amount += t.amount,
+               @@channels += t.channel,
+               @@regions += t.addr1;
+
+  PRINT @@total_txns AS total_txns;
+  PRINT @@sum_amount AS sum_amount;
+  PRINT @@max_amount AS max_amount;
+  PRINT @@channels AS channels;
+  PRINT @@regions AS regions;
+}
+
+INSTALL QUERY card_baseline

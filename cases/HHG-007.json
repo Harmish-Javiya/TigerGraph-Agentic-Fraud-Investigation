@@ -1,9 +1,9 @@
 {
   "case_id": "HHG-007",
   "case": {
-    "status": "closed_fraud",
-    "verdict": "fraud",
-    "fraud_probability": 0.95,
+    "status": "open",
+    "verdict": "uncertain",
+    "fraud_probability": 0.65,
     "pattern": "none",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -56,14 +56,6 @@
           "CC-5525",
           "CC-5504"
         ]
-      },
-      {
-        "claim": "Simulated customer response (not a real customer statement): 'No, I did not authorize this transaction. Please block my card immediately!'",
-        "source": "customer",
-        "ref": "simulated_customer_response",
-        "entity_ids": [
-          "3514948"
-        ]
       }
     ],
     "similar_prior_cases": [
@@ -71,7 +63,9 @@
       "CC-5525",
       "CC-5504"
     ],
-    "summary": "Transaction 3514948 ($111.92, in_person) was investigated after an upstream risk score of 0.87. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern none. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "summary": "Transaction 3514948 ($111.92, in_person) was investigated after an upstream risk score of 0.87. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.65), pattern none. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
+    "probability_rationale": "The fraud probability was set to 0.70 due to the high risk score of 0.87 on transaction 3514948 and previous fraud history associated with the customer account, balanced against the lack of definitive fraud indicators under current policy guidelines.",
+    "decision_mechanics": "The fraud score is 65%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 1 separate supporting fact(s): upstream risk score. Two are needed before the score alone can close the case. The customer did not reply within 24 hours. Policy checks used: R1, R4.",
     "written_to_graph": true,
     "graph_case_id": "HHG-007"
   },
@@ -79,7 +73,7 @@
     {
       "type": "customer_validation",
       "asked_after_step": 54,
-      "assumed_response": "No, I did not authorize this transaction. Please block my card immediately!"
+      "assumed_response": "No response within 24 hours"
     }
   ],
   "next_best_actions": {
@@ -87,44 +81,49 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "§3a: investigation warranted, case opened"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
         "action": "VERIFY_WITH_CUSTOMER",
         "route": "auto",
-        "reason": "R1: probability < 0.70, verify before blocking"
+        "reason": "R1: weak evidence below 0.70 requires verification before blocking"
       }
     ],
     "final": [
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "§3a: investigation warranted, case opened; R2: customer denied authorizing the transaction"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "BLOCK_CARD",
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R4: validation request received no response within 24 hours"
+      },
+      {
+        "action": "DECLINE_TRANSACTION",
         "route": "L1",
-        "reason": "R2: customer denial established unauthorized use"
+        "reason": "R4: no response within 24 hours for pending authorization"
       }
     ],
-    "what_changed": "Customer validation confirmed unauthorized activity; final actions reflect the settled case outcome."
+    "what_changed": "Customer response: 'No response within 24 hours'. Added: DECLINE_TRANSACTION, MONITOR_CARD. Removed: VERIFY_WITH_CUSTOMER."
   },
   "sar": {
     "file": false,
-    "reason": "Rule(s) R2 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
+    "reason": "Rule(s) R1, R4 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "stop_reason": "Customer validation received no response within 24 hours; the case remains open and actions follow R4.",
   "tool_calls": 12,
-  "tokens": 5726,
-  "latency_s": 17.3,
+  "tokens": 6054,
+  "latency_s": 15.2,
   "qa": {
-    "reviewer_severity": "none",
-    "reviewer_issue_count": 0,
-    "validator_correction_count": 0,
-    "clean": true
+    "reviewer_severity": "critical",
+    "reviewer_issue_count": 1,
+    "validator_correction_count": 1,
+    "clean": false
   }
 }

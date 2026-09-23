@@ -1,0 +1,10 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY customer_cards(STRING customer_id) FOR GRAPH fraud_investigation {
+  Seed = {Customer.*};
+  Cards = SELECT c FROM Seed:cu -(OWNS)-> Card:c
+          WHERE cu.customer_id == customer_id;
+  PRINT Cards;
+}
+
+INSTALL QUERY customer_cards

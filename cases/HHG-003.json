@@ -3,7 +3,7 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.45,
+    "fraud_probability": 0.35,
     "pattern": "none",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -71,7 +71,9 @@
       "CC-5525",
       "CC-5504"
     ],
-    "summary": "Transaction 3530164 ($49.00, in_person) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.45), pattern none. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "summary": "Transaction 3530164 ($49.00, in_person) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.35), pattern none. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "probability_rationale": "The fraud probability was set to 0.40 to reflect the trigger risk score and customer dispute while maintaining a legitimate verdict due to strong behavioral alignment with the customer's baseline, usual channel, and usual billing region 330.",
+    "decision_mechanics": "The fraud score is 35%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 1 separate supporting fact(s): customer denial. Two are needed before the score alone can close the case. The customer said they did not make the transaction. Policy checks used: R1, R2.",
     "written_to_graph": true,
     "graph_case_id": "HHG-003"
   },
@@ -111,10 +113,10 @@
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "stop_reason": "Investigation remains open because additional evidence is needed before a defensible decision.",
   "tool_calls": 12,
-  "tokens": 5241,
-  "latency_s": 16.0,
+  "tokens": 5563,
+  "latency_s": 15.9,
   "qa": {
     "reviewer_severity": "warning",
     "reviewer_issue_count": 1,

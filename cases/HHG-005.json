@@ -1,18 +1,18 @@
 {
   "case_id": "HHG-005",
   "case": {
-    "status": "closed_legitimate",
-    "verdict": "legitimate",
-    "fraud_probability": 0.05,
+    "status": "open",
+    "verdict": "uncertain",
+    "fraud_probability": 0.59,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
-    "affected_txn_ids": [],
-    "first_suspicious_txn_id": "",
-    "connected_card_ids": [
-      "C02923"
+    "affected_txn_ids": [
+      "3523199"
     ],
+    "first_suspicious_txn_id": "3523199",
+    "connected_card_ids": [],
     "connected_device_profiles": [],
-    "exposure_usd": 0.0,
+    "exposure_usd": 100.07,
     "evidence": [
       {
         "claim": "Flagged transaction 3523199 was online for $100.07; its upstream model risk score was 0.54.",
@@ -54,14 +54,6 @@
           "CC-5557",
           "CC-5553"
         ]
-      },
-      {
-        "claim": "Simulated customer response (not a real customer statement): 'Yes, I made that online transaction.'",
-        "source": "customer",
-        "ref": "simulated_customer_response",
-        "entity_ids": [
-          "3523199"
-        ]
       }
     ],
     "similar_prior_cases": [
@@ -69,7 +61,9 @@
       "CC-5557",
       "CC-5553"
     ],
-    "summary": "Transaction 3523199 ($100.07, online) was investigated after an upstream risk score of 0.54. Customer validation confirmed the transaction was legitimate. Final assessment: legitimate (P=0.05), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, CLOSE_NO_FRAUD.",
+    "summary": "Transaction 3523199 ($100.07, online) was investigated after an upstream risk score of 0.54. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.59), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
+    "probability_rationale": "The fraud probability of 0.54 was chosen to match the upstream risk score of the flagged transaction 3523199. An uncertain verdict was selected because the transaction amount of $100.07 is below the customer's average of $176.02 and within historical channel patterns, yet matches card not present fraud indicators requiring customer verification.",
+    "decision_mechanics": "The fraud score is 59%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 0 separate supporting fact(s): none. Two are needed before the score alone can close the case. The customer did not reply within 24 hours. Policy checks used: R1, R4.",
     "written_to_graph": true,
     "graph_case_id": "HHG-005"
   },
@@ -77,7 +71,7 @@
     {
       "type": "customer_validation",
       "asked_after_step": 6,
-      "assumed_response": "Yes, I made that online transaction."
+      "assumed_response": "No response within 24 hours"
     }
   ],
   "next_best_actions": {
@@ -97,32 +91,37 @@
       {
         "action": "CREATE_CASE",
         "route": "auto",
-        "reason": "§3a: investigation warranted, case opened"
+        "reason": "§3a: investigation warranted, case opened; §3a: investigation remains unresolved"
       },
       {
-        "action": "CLOSE_NO_FRAUD",
+        "action": "MONITOR_CARD",
         "route": "auto",
-        "reason": "R3: customer confirmed the transaction was legitimate"
+        "reason": "R4: validation request received no response within 24 hours"
+      },
+      {
+        "action": "DECLINE_TRANSACTION",
+        "route": "L1",
+        "reason": "R4: no response within 24 hours for pending authorization"
       }
     ],
-    "what_changed": "Customer validation confirmed the transaction was legitimate; final actions reflect the settled case outcome."
+    "what_changed": "Customer response: 'No response within 24 hours'. Added: DECLINE_TRANSACTION, MONITOR_CARD. Removed: VERIFY_WITH_CUSTOMER."
   },
   "sar": {
     "file": false,
-    "reason": "R3: customer confirmation established a legitimate transaction; FILE_REPORT is not required.",
+    "reason": "Rule(s) R1, R4 applied for this case, but none of them establish a FILE_REPORT condition; FILE_REPORT is not required.",
     "narrative": "",
     "subjects": [],
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Customer validation confirmed the transaction was legitimate; the case is closed under R3.",
+  "stop_reason": "Customer validation received no response within 24 hours; the case remains open and actions follow R4.",
   "tool_calls": 13,
-  "tokens": 5444,
-  "latency_s": 17.6,
+  "tokens": 5947,
+  "latency_s": 17.4,
   "qa": {
-    "reviewer_severity": "none",
-    "reviewer_issue_count": 0,
-    "validator_correction_count": 0,
-    "clean": true
+    "reviewer_severity": "critical",
+    "reviewer_issue_count": 1,
+    "validator_correction_count": 1,
+    "clean": false
   }
 }

@@ -1,0 +1,31 @@
+-- ============================================================
+-- Adds an auditable event log for each investigation, matching
+-- investigator.py's call:
+--   gc.write_investigation_event(case_id, event_id, event_type,
+--                                 payload_json, event_time)
+-- where event_id = f"{case_id}:{event_type}" and event_type is
+-- one of: evidence, recommendations, decision, review.
+--
+-- Run this against an EXISTING fraud_investigation graph — it
+-- only adds new objects, it does not touch Customer/Card/
+-- Transaction/etc. Uses ADD VERTEX/EDGE with full inline
+-- definitions inside a SCHEMA_CHANGE JOB, which is the form
+-- that worked for this graph earlier (a bare ADD VERTEX <name>
+-- referencing a separately-created global type was not used
+-- for the original schema and is not assumed to work here).
+-- ============================================================
+
+USE GRAPH fraud_investigation
+
+CREATE SCHEMA_CHANGE JOB add_investigation_events FOR GRAPH fraud_investigation {
+  ADD VERTEX InvestigationEvent (
+    PRIMARY_ID event_id STRING,
+    case_id STRING,
+    event_type STRING,
+    payload_json STRING,
+    event_time DATETIME
+  ) WITH PRIMARY_ID_AS_ATTRIBUTE="true";
+  ADD DIRECTED EDGE HAS_EVENT (FROM InvestigationCase, TO InvestigationEvent);
+}
+
+RUN SCHEMA_CHANGE JOB add_investigation_events

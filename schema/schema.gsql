@@ -1,0 +1,164 @@
+-- ============================================================
+-- Fraud Investigation Graph Schema
+-- Run each CREATE VERTEX block separately if your GSQL version
+-- rejects multi-vertex statements in one call (TigerGraph CE 4.3
+-- required this to be split — see comments below).
+-- ============================================================
+
+USE GLOBAL
+
+-- ── Vertices ─────────────────────────────────────────────────
+
+CREATE VERTEX Customer (
+  PRIMARY_ID customer_id STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX Card (
+  PRIMARY_ID card_id STRING,
+  card1 INT,
+  card2 INT,
+  card3 INT,
+  card4 STRING,
+  card5 INT,
+  card6 STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX Transaction (
+  PRIMARY_ID txn_id STRING,
+  ts DATETIME,
+  amount DOUBLE,
+  product_cd STRING,
+  channel STRING,
+  risk_score DOUBLE,
+  addr1 DOUBLE,
+  addr2 DOUBLE,
+  dist1 DOUBLE,
+  dist2 DOUBLE,
+  p_email STRING,
+  r_email STRING,
+  c1 DOUBLE,
+  c2 DOUBLE,
+  c3 DOUBLE,
+  c4 DOUBLE,
+  c5 DOUBLE,
+  c6 DOUBLE,
+  c7 DOUBLE,
+  c8 DOUBLE,
+  c9 DOUBLE,
+  c10 DOUBLE,
+  c11 DOUBLE,
+  c12 DOUBLE,
+  c13 DOUBLE,
+  c14 DOUBLE,
+  d1 DOUBLE,
+  d2 DOUBLE,
+  d3 DOUBLE,
+  d4 DOUBLE,
+  d5 DOUBLE,
+  d6 DOUBLE,
+  d7 DOUBLE,
+  d8 DOUBLE,
+  d9 DOUBLE,
+  d10 DOUBLE,
+  d11 DOUBLE,
+  d12 DOUBLE,
+  d13 DOUBLE,
+  d14 DOUBLE,
+  d15 DOUBLE,
+  m1 STRING,
+  m2 STRING,
+  m3 STRING,
+  m4 STRING,
+  m5 STRING,
+  m6 STRING,
+  m7 STRING,
+  m8 STRING,
+  m9 STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX DeviceProfile (
+  PRIMARY_ID device_key STRING,
+  device_type STRING,
+  device_info STRING,
+  os_name STRING,
+  browser_name STRING,
+  screen_res STRING,
+  proxy_type STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX BillingRegion (
+  PRIMARY_ID region_code STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX EmailDomain (
+  PRIMARY_ID domain STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX ClosedCase (
+  PRIMARY_ID case_id STRING,
+  customer_id STRING,
+  card_id STRING,
+  opened_at DATETIME,
+  closed_at DATETIME,
+  outcome STRING,
+  pattern STRING,
+  first_fraud_txn_id STRING,
+  txn_ids STRING,
+  n_txns INT,
+  exposure_usd DOUBLE,
+  connected_card_ids STRING,
+  actions_taken STRING,
+  report_filed BOOL,
+  analyst_notes STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+CREATE VERTEX InvestigationCase (
+  PRIMARY_ID case_id STRING,
+  customer_id STRING,
+  card_id STRING,
+  opened_at DATETIME,
+  status STRING,
+  verdict STRING,
+  fraud_probability DOUBLE,
+  pattern STRING,
+  exposure_usd DOUBLE,
+  summary STRING
+) WITH PRIMARY_ID_AS_ATTRIBUTE="true"
+
+-- ── Edges ────────────────────────────────────────────────────
+
+CREATE DIRECTED EDGE OWNS (FROM Customer, TO Card)
+CREATE DIRECTED EDGE MADE (FROM Card, TO Transaction)
+CREATE DIRECTED EDGE FROM_DEVICE (FROM Transaction, TO DeviceProfile)
+CREATE DIRECTED EDGE BILLED_IN (FROM Transaction, TO BillingRegion)
+CREATE DIRECTED EDGE PURCHASER_EMAIL (FROM Transaction, TO EmailDomain)
+CREATE DIRECTED EDGE RECIPIENT_EMAIL (FROM Transaction, TO EmailDomain)
+CREATE DIRECTED EDGE INVOLVES_TXN (FROM ClosedCase, TO Transaction)
+CREATE DIRECTED EDGE ON_CARD (FROM ClosedCase, TO Card)
+CREATE DIRECTED EDGE CONNECTED_TO (FROM ClosedCase, TO Card)
+CREATE DIRECTED EDGE CASE_ON_CARD (FROM InvestigationCase, TO Card)
+CREATE DIRECTED EDGE CASE_TXN (FROM InvestigationCase, TO Transaction)
+
+-- ── Graph ────────────────────────────────────────────────────
+
+CREATE GRAPH fraud_investigation (
+  Customer, Card, Transaction, DeviceProfile,
+  BillingRegion, EmailDomain, ClosedCase, InvestigationCase,
+  OWNS, MADE, FROM_DEVICE, BILLED_IN,
+  PURCHASER_EMAIL, RECIPIENT_EMAIL,
+  INVOLVES_TXN, ON_CARD, CONNECTED_TO,
+  CASE_ON_CARD, CASE_TXN
+)
+
+-- ============================================================
+-- NOTE: On TigerGraph CE 4.3, if this whole file fails with a
+-- parser error on one CREATE VERTEX block, split it out and run
+-- each CREATE VERTEX / CREATE EDGE statement as its own separate
+-- GSQL call, then run the CREATE GRAPH statement last. This was
+-- required during initial setup — CE 4.3's GSQL parser rejected
+-- multiple vertex definitions submitted together in some builds.
+-- Also: a repeated attribute alongside PRIMARY_ID_AS_ATTRIBUTE
+-- (e.g. listing customer_id twice) throws:
+--   "attribute cannot have the same name as primary_id"
+-- so PRIMARY_ID <name> <type> is enough; do not repeat it below.
+-- ============================================================

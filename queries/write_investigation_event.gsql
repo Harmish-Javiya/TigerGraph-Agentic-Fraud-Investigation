@@ -1,0 +1,23 @@
+-- Matches investigator.py's call signature exactly:
+--   gc.write_investigation_event(case_id, event_id, event_type, payload_json, event_time)
+-- event_id is f"{case_id}:{event_type}" and is stable across reruns of the
+-- same case, so INSERT INTO here naturally upserts rather than duplicating
+-- rows on a rerun — same behaviour the code comments describe for
+-- graphrag.remember_investigation.
+
+USE GRAPH fraud_investigation
+
+CREATE QUERY write_investigation_event(
+  STRING case_id,
+  STRING event_id,
+  STRING event_type,
+  STRING payload_json,
+  DATETIME event_time
+) FOR GRAPH fraud_investigation {
+  INSERT INTO InvestigationEvent VALUES (
+    event_id, case_id, event_type, payload_json, event_time
+  );
+  INSERT INTO HAS_EVENT VALUES (case_id, event_id);
+}
+
+INSTALL QUERY write_investigation_event

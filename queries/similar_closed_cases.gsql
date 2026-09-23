@@ -1,0 +1,16 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY similar_closed_cases(STRING pattern_name, STRING customer_id) FOR GRAPH fraud_investigation {
+  Seed = {ClosedCase.*};
+  ByPattern = SELECT cc FROM Seed:cc
+              WHERE cc.pattern == pattern_name
+              ORDER BY cc.opened_at DESC
+              LIMIT 10;
+  ByCustomer = SELECT cc FROM Seed:cc
+               WHERE cc.customer_id == customer_id
+               ORDER BY cc.opened_at DESC
+               LIMIT 5;
+  PRINT ByPattern, ByCustomer;
+}
+
+INSTALL QUERY similar_closed_cases

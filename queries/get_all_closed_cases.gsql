@@ -1,0 +1,12 @@
+-- Used by graphrag.py build_index() to fetch all closed cases for embedding.
+-- Not requested in the original list but required for GraphRAG to work.
+
+USE GRAPH fraud_investigation
+
+CREATE QUERY get_all_closed_cases() FOR GRAPH fraud_investigation {
+  Seed = {ClosedCase.*};
+  Result = SELECT cc FROM Seed:cc;
+  PRINT Result;
+}
+
+INSTALL QUERY get_all_closed_cases

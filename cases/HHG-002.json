@@ -51,7 +51,7 @@
         ]
       },
       {
-        "claim": "Simulated customer response (not a real customer statement): 'No, I did not authorize this transaction. Please block my card immediately!'",
+        "claim": "Simulated customer response (not a real customer statement): 'No, I did not authorize this transaction. Please block my card immediately.'",
         "source": "customer",
         "ref": "simulated_customer_response",
         "entity_ids": [
@@ -65,6 +65,8 @@
       "CC-5553"
     ],
     "summary": "Transaction 3478782 ($292.36, online) was investigated after an upstream risk score of 0.79. Customer validation confirmed unauthorized activity. Final assessment: fraud (P=0.95), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, BLOCK_CARD.",
+    "probability_rationale": "The fraud probability of 0.79 was selected to align directly with the upstream real-time model risk score for transaction 3478782. This score combined with the online channel and policy criteria triggered R1 VERIFY_WITH_CUSTOMER.",
+    "decision_mechanics": "The fraud score is 95%, above the 85% fraud threshold. The system found 3 separate supporting facts: upstream risk score, amount anomaly versus baseline, customer denial. The customer said they did not make the transaction. Policy checks used: R2.",
     "written_to_graph": true,
     "graph_case_id": "HHG-002"
   },
@@ -72,7 +74,7 @@
     {
       "type": "customer_validation",
       "asked_after_step": 5,
-      "assumed_response": "No, I did not authorize this transaction. Please block my card immediately!"
+      "assumed_response": "No, I did not authorize this transaction. Please block my card immediately."
     }
   ],
   "next_best_actions": {
@@ -110,14 +112,14 @@
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "stop_reason": "Customer denial established R2; the case is closed as fraud.",
   "tool_calls": 11,
-  "tokens": 5329,
-  "latency_s": 19.9,
+  "tokens": 5774,
+  "latency_s": 13.7,
   "qa": {
-    "reviewer_severity": "none",
-    "reviewer_issue_count": 0,
+    "reviewer_severity": "warning",
+    "reviewer_issue_count": 1,
     "validator_correction_count": 0,
-    "clean": true
+    "clean": false
   }
 }

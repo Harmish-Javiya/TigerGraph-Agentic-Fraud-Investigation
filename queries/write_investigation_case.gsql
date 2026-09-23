@@ -1,0 +1,23 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY write_investigation_case(
+  STRING case_id,
+  STRING customer_id,
+  STRING card_id,
+  DATETIME opened_at,
+  STRING status,
+  STRING verdict,
+  DOUBLE fraud_probability,
+  STRING pattern,
+  DOUBLE exposure_usd,
+  STRING summary
+) FOR GRAPH fraud_investigation {
+  INSERT INTO InvestigationCase VALUES (
+    case_id, customer_id, card_id, opened_at,
+    status, verdict, fraud_probability,
+    pattern, exposure_usd, summary
+  );
+  INSERT INTO CASE_ON_CARD VALUES (case_id, card_id);
+}
+
+INSTALL QUERY write_investigation_case

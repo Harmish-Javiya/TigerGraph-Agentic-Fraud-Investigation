@@ -3,7 +3,7 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.55,
+    "fraud_probability": 0.6,
     "pattern": "card_not_present_fraud",
     "pattern_description": "",
     "affected_txn_ids": [
@@ -96,7 +96,9 @@
       "CC-5562",
       "CC-5559"
     ],
-    "summary": "Transaction 3558054 ($55.68, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.55), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, VERIFY_WITH_CUSTOMER, WARN_CUSTOMER.",
+    "summary": "Transaction 3558054 ($55.68, online) was investigated after an upstream risk score of 0.50. Customer validation confirmed unauthorized activity. Final assessment: uncertain (P=0.60), pattern card_not_present_fraud. Recommended actions: CREATE_CASE, VERIFY_WITH_CUSTOMER, WARN_CUSTOMER.",
+    "probability_rationale": "The fraud probability of 0.55 was chosen because the customer directly disputed transaction 3558054, aligning with similar uncertain historical cases (like HHG-020 and HHG-005) where disputed amounts near the customer average require direct validation. However, the amount matches normal spending patterns, preventing a higher definitive fraud score.",
+    "decision_mechanics": "The fraud score is 60%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 1 separate supporting fact(s): customer denial. Two are needed before the score alone can close the case. The customer said they did not make the transaction. Policy checks used: R1, R7.",
     "written_to_graph": true,
     "graph_case_id": "HHG-008"
   },
@@ -146,13 +148,13 @@
     "total_amount_usd": 0.0,
     "activity_dates": []
   },
-  "stop_reason": "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2.",
+  "stop_reason": "Case remains open under rule(s) ['R1', 'R7']; no closing condition (R2/R3) was established.",
   "tool_calls": 12,
-  "tokens": 5566,
-  "latency_s": 14.9,
+  "tokens": 6070,
+  "latency_s": 14.1,
   "qa": {
-    "reviewer_severity": "critical",
-    "reviewer_issue_count": 1,
+    "reviewer_severity": "warning",
+    "reviewer_issue_count": 2,
     "validator_correction_count": 1,
     "clean": false
   }

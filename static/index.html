@@ -183,9 +183,10 @@ function badgeForQA(qa) {
   return `<span class="badge ${cls}" title="Reviewer severity: ${sev}, ${qa.reviewer_issue_count} issue(s) flagged, ${qa.validator_correction_count} correction(s) applied">${label}</span>`;
 }
 
-function confidenceHtml(p) {
+function confidenceHtml(p, rationale) {
   const pct = Math.round((p ?? 0) * 100);
-  return `<span class="conf-bar-bg"><span class="conf-bar" style="width:${pct}%"></span></span>${pct}%`;
+  const title = rationale ? ` title="${escapeHtml(rationale).replace(/"/g, '&quot;')}"` : "";
+  return `<span${title}><span class="conf-bar-bg"><span class="conf-bar" style="width:${pct}%"></span></span>${pct}%</span>`;
 }
 
 function fmtMoney(n) {
@@ -267,7 +268,7 @@ function rowHtml(ans) {
       <td>${c.status}</td>
       <td>${badgeForVerdict(c.verdict)}</td>
       <td>${c.pattern}</td>
-      <td>${confidenceHtml(c.fraud_probability)}</td>
+      <td>${confidenceHtml(c.fraud_probability, c.decision_mechanics)}</td>
       <td>${fmtMoney(c.exposure_usd)}</td>
       <td class="${sar ? 'sar-yes' : 'sar-no'}">${sar ? "Filed" : "No"}</td>
       <td>${badgeForQA(ans.qa)}</td>
@@ -386,10 +387,11 @@ function caseDetailHtml(ans) {
         <section class="detail-section"><h3>Investigation timeline</h3><ol class="timeline">
           <li><strong>Trigger</strong><br>${safe(ans.case_id)} opened for review</li>
           <li><strong>Evidence gathered</strong><br>${c.evidence?.length || 0} evidence item(s), ${reqs.length} evidence request(s)</li>
-          <li><strong>Assessment</strong><br>${safe(c.verdict)} at confidence ${confidenceHtml(c.fraud_probability)}; pattern: ${safe(c.pattern)}</li>
+          <li><strong>Assessment</strong><br>${safe(c.verdict)} at confidence ${confidenceHtml(c.fraud_probability, c.decision_mechanics)}; pattern: ${safe(c.pattern)}</li>
           <li><strong>Decision</strong><br>${safe(c.status)} · ${sarText}</li>
         </ol></section>
         <section class="detail-section"><h3>Decision rationale</h3><p>${safe(c.summary)}</p><p><strong>Stop reason:</strong> ${safe(ans.stop_reason)}</p><p><strong>Graph case:</strong> ${c.written_to_graph ? safe(c.graph_case_id) : "Not written"}</p></section>
+        <section class="detail-section"><h3>How this decision was reached</h3><p class="qa-note">${safe(c.decision_mechanics || "Not available for cases generated before this explanation was added.")}</p></section>
       </div>
     </div>
 

@@ -1,0 +1,23 @@
+# TigerGraph connectivity
+tigergraph-mcp
+mcp
+httpx2
+pyTigerGraph
+
+# LLM
+groq
+
+# Agent / schema / config
+pydantic>=2.0
+python-dotenv
+
+# GraphRAG (local vector store)
+sentence-transformers
+numpy
+
+# Data prep
+pandas
+
+# Dashboard API
+flask
+requests

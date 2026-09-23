@@ -3,14 +3,16 @@
   "case": {
     "status": "open",
     "verdict": "uncertain",
-    "fraud_probability": 0.5,
+    "fraud_probability": 0.45,
     "pattern": "none",
     "pattern_description": "",
     "affected_txn_ids": [
       "3514030"
     ],
     "first_suspicious_txn_id": "3514030",
-    "connected_card_ids": [],
+    "connected_card_ids": [
+      "C12382"
+    ],
     "connected_device_profiles": [],
     "exposure_usd": 77.07,
     "evidence": [
@@ -61,7 +63,9 @@
       "CC-5525",
       "CC-5504"
     ],
-    "summary": "Transaction 3514030 ($77.07, in_person) was investigated after an upstream risk score of 0.61. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.50), pattern none. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
+    "summary": "Transaction 3514030 ($77.07, in_person) was investigated after an upstream risk score of 0.61. Customer validation confirmed the transaction was legitimate. Final assessment: uncertain (P=0.45), pattern none. Recommended actions: CREATE_CASE, MONITOR_CARD, DECLINE_TRANSACTION.",
+    "probability_rationale": "The fraud probability was set to 0.50 reflecting an uncertain baseline risk score of 0.61 combined with historical precedent from HHG-001 where customer validation ultimately confirmed legitimacy, balancing the elevated model score against consistent regional and baseline patterns.",
+    "decision_mechanics": "The fraud score is 45%, between the 15% and 85% closing thresholds, so the case is not settled yet. The system found 0 separate supporting fact(s): none. Two are needed before the score alone can close the case. The customer did not reply within 24 hours. Policy checks used: R1, R4.",
     "written_to_graph": true,
     "graph_case_id": "HHG-001"
   },
@@ -102,7 +106,7 @@
         "reason": "R4: no response within 24 hours for pending authorization"
       }
     ],
-    "what_changed": "Customer response: 'No response within 24 hours'. Added: MONITOR_CARD, DECLINE_TRANSACTION. Removed: VERIFY_WITH_CUSTOMER."
+    "what_changed": "Customer response: 'No response within 24 hours'. Added: DECLINE_TRANSACTION, MONITOR_CARD. Removed: VERIFY_WITH_CUSTOMER."
   },
   "sar": {
     "file": false,
@@ -114,11 +118,11 @@
   },
   "stop_reason": "Customer validation received no response within 24 hours; the case remains open and actions follow R4.",
   "tool_calls": 12,
-  "tokens": 5614,
-  "latency_s": 197.2,
+  "tokens": 6144,
+  "latency_s": 15.5,
   "qa": {
     "reviewer_severity": "critical",
-    "reviewer_issue_count": 8,
+    "reviewer_issue_count": 1,
     "validator_correction_count": 1,
     "clean": false
   }

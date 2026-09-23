@@ -1,0 +1,29 @@
+USE GRAPH fraud_investigation
+
+CREATE QUERY device_neighbors(STRING device_key) FOR GRAPH fraud_investigation {
+  -- Capped with LIMIT at every hop: an uncapped traversal on a device shared
+  -- by a busy card previously caused the same
+  --   "SSE stream ended without a response"
+  -- failure seen on the old card_history query. Aggregating counts alongside
+  -- the capped lists gives the agent a sense of true scale even when the
+  -- printed lists are truncated.
+  SumAccum<INT> @@card_count;
+  SumAccum<INT> @@case_count;
+
+  Seed = {DeviceProfile.*};
+  Txns = SELECT t FROM Seed:d -(<FROM_DEVICE)- Transaction:t
+         WHERE d.device_key == device_key
+         LIMIT 100;
+  Cards = SELECT c FROM Txns:t -(<MADE)- Card:c
+          ACCUM @@card_count += 1
+          LIMIT 20;
+  Cases = SELECT cc FROM Cards:c -(<ON_CARD)- ClosedCase:cc
+          ACCUM @@case_count += 1
+          LIMIT 20;
+
+  PRINT Txns, Cards, Cases;
+  PRINT @@card_count AS total_cards_seen;
+  PRINT @@case_count AS total_cases_seen;
+}
+
+INSTALL QUERY device_neighbors
