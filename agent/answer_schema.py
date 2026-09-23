@@ -152,6 +152,22 @@ class Case(BaseModel):
         description="CC-XXXX IDs from closed_cases_history used as memory."
     )
     summary: str = Field(description="2-6 sentences an analyst could read.")
+    probability_rationale: str = Field(
+        default="",
+        description=(
+            "LLM #1's own explanation for why THIS fraud_probability number and THIS verdict "
+            "were assigned, in plain language an analyst can sanity-check against the evidence "
+            "list. This is explanatory only — it is never a source of policy facts, and nothing "
+            "in the policy engine or final validator reads this field to make a decision."
+        )
+    )
+    decision_mechanics: str = Field(
+        default="",
+        description=(
+            "Deterministic explanation of the probability band, independent "
+            "evidence indicators, customer-validation state, and policy result."
+        )
+    )
     written_to_graph: bool = Field(default=False)
     graph_case_id: str = Field(default="")
 

@@ -485,27 +485,31 @@ def derive_policy_facts(bundle: dict, txn: dict, customer_response: dict | None,
     card_testing = detect_card_testing(txn, bundle.get("window", []), case["card_id"])
 
     # §6 counts independent fraud/legitimacy indicators, never query rows.
-    support = set()
+    support: list[str] = []
+    def add_support(signal: str) -> None:
+        if signal not in support:
+            support.append(signal)
+
     if float(txn.get("risk_score", 0) or 0) >= 0.70:
-        support.add("upstream_risk_signal")
+        add_support("upstream_risk_signal")
     try:
         amount = float(txn.get("amount", 0) or 0)
         maximum = float(baseline.get("max_amount", 0) or 0)
         average = float(baseline.get("avg_amount", 0) or 0)
         if (maximum and amount > maximum) or (average and amount >= average * 3):
-            support.add("amount_anomaly")
+            add_support("amount_anomaly")
     except (TypeError, ValueError):
         pass
     if txn.get("channel") and txn.get("channel") not in baseline.get("usual_channels", []):
-        support.add("new_channel")
+        add_support("new_channel")
     if card_testing:
-        support.add("card_testing_sequence")
+        add_support("card_testing_sequence")
     if shared_origin_confirmed:
-        support.add("confirmed_shared_origin")
+        add_support("confirmed_shared_origin")
     if customer_denied:
-        support.add("customer_denial")
+        add_support("customer_denial")
     if customer_confirmed:
-        support.add("customer_confirmation")
+        add_support("customer_confirmation")
 
     return {
         "customer_denied": customer_denied,
@@ -517,6 +521,7 @@ def derive_policy_facts(bundle: dict, txn: dict, customer_response: dict | None,
         "confirmed_compromised_cards": len(compromised_cards),
         "credentials_confirmed_compromised": credentials_confirmed,
         "independent_support_count": len(support),
+        "independent_support_signals": support,
         "weak_evidence": len(support) <= 1,
     }
 
@@ -628,6 +633,7 @@ Return this exact JSON:
   ],
   "similar_prior_cases": {json.dumps(prior_case_ids)},
   "summary": "2-6 sentences an analyst could read",
+  "probability_rationale": "1-3 sentences explaining specifically why THIS fraud_probability number and THIS verdict (not a different one) were chosen, referencing which evidence pushed it up or down",
   "analyst_notes": "internal notes on investigation reasoning",
   "needs_customer_contact": true or false,
   "customer_contact_question": "specific question with amount and date",
@@ -652,6 +658,11 @@ Evidence rules:
   value, but never invent a specific definition such as "transaction count".
 - When describing a time window, include the flagged transaction or explicitly
   say "other transactions" if you exclude it.
+- probability_rationale must only reference facts already present in your own
+  evidence list above — it explains your reasoning, it does not introduce new
+  claims. It is descriptive only; it can never override or substitute for a
+  deterministic policy predicate (R1-R10), and no downstream code treats it
+  as authoritative.
 - For legitimate verdict: affected_txn_ids=[], exposure_usd=0
 """
 
@@ -953,6 +964,66 @@ def build_no_sar_reason(policy, verdict: str) -> str:
     return "No deterministic policy rule was applied that establishes a FILE_REPORT condition."
 
 
+def build_decision_mechanics(analysis: dict, policy_facts: dict, policy,
+                             evidence_requests: list[EvidenceRequest]) -> str:
+    """Short plain-language explanation of the probability and policy result."""
+    probability = float(analysis["fraud_probability"])
+    if probability >= STOP_HIGH:
+        threshold_explanation = (
+            f"The fraud score is {probability:.0%}, above the 85% fraud threshold."
+        )
+    elif probability <= STOP_LOW:
+        threshold_explanation = (
+            f"The fraud score is {probability:.0%}, below the 15% legitimate threshold."
+        )
+    else:
+        threshold_explanation = (
+            f"The fraud score is {probability:.0%}, between the 15% and 85% closing thresholds, "
+            "so the case is not settled yet."
+        )
+
+    labels = {
+        "upstream_risk_signal": "upstream risk score",
+        "amount_anomaly": "amount anomaly versus baseline",
+        "new_channel": "new customer channel",
+        "card_testing_sequence": "validated card-testing sequence",
+        "confirmed_shared_origin": "validated shared origin",
+        "customer_denial": "customer denial",
+        "customer_confirmation": "customer confirmation",
+    }
+    signals = [labels.get(signal, signal.replace("_", " "))
+               for signal in policy_facts.get("independent_support_signals", [])]
+    evidence = ", ".join(signals) if signals else "none"
+    support_count = policy_facts["independent_support_count"]
+    if support_count >= 2:
+        evidence_explanation = (
+            f"The system found {support_count} separate supporting facts: {evidence}."
+        )
+    else:
+        evidence_explanation = (
+            f"The system found {support_count} separate supporting fact(s): {evidence}. "
+            "Two are needed before the score alone can close the case."
+        )
+
+    if policy_facts["customer_denied"]:
+        customer_state = "The customer said they did not make the transaction."
+    elif policy_facts["customer_confirmed"]:
+        customer_state = "The customer confirmed that they made the transaction."
+    elif policy_facts["customer_no_response_24h"]:
+        customer_state = "The customer did not reply within 24 hours."
+    elif any(request.type == "customer_validation" for request in evidence_requests):
+        customer_state = "The customer-validation check is still unresolved."
+    else:
+        customer_state = "No customer check was needed or requested."
+
+    rules = ", ".join(policy.rules_applied)
+    rule_explanation = f"Policy checks used: {rules}." if rules else "No specific policy rule was triggered."
+    return (
+        f"{threshold_explanation} {evidence_explanation} "
+        f"{customer_state} {rule_explanation}"
+    )
+
+
 def build_sar_narrative(case: dict, txn: dict, analysis: dict, exposure: float,
                         final_actions: list[ActionItem], customer_response: dict | None) -> str:
     """Produce a factual SAR narrative; never claim recommendations executed."""
@@ -1157,6 +1228,38 @@ def deterministic_final_validate(answer: CaseAnswer, policy, evidence_requests: 
             )
             answer.next_best_actions.initial = list(answer.next_best_actions.final)
             answer.next_best_actions.what_changed = "nothing"
+
+    # 8. stop_reason must match the final deterministic state: no rule cited
+    # that isn't in rules_applied, and no "closed as fraud"/"closed as
+    # legitimate" language unless the status actually reflects that. This is
+    # the same class of bug Fix #3 caught in sar.reason, applied to
+    # stop_reason too (this check was documented but missing until now).
+    stop_mentioned = set(rule_pattern.findall(answer.stop_reason))
+    stop_lower = answer.stop_reason.lower()
+    claims_closed_fraud = "closed as fraud" in stop_lower
+    claims_closed_legit = "closed as legitimate" in stop_lower or "closed under r3" in stop_lower
+    inconsistent = (
+        (stop_mentioned - allowed_rules)
+        or (claims_closed_fraud and answer.case.status != CaseStatus.CLOSED_FRAUD)
+        or (claims_closed_legit and answer.case.status != CaseStatus.CLOSED_LEGITIMATE)
+    )
+    if inconsistent:
+        corrections.append(
+            f"stop_reason ('{answer.stop_reason}') was inconsistent with the final "
+            f"status={answer.case.status.value}/rules_applied={sorted(allowed_rules)}; "
+            f"replaced with a status-derived stop_reason."
+        )
+        if answer.case.status == CaseStatus.CLOSED_FRAUD:
+            answer.stop_reason = "Customer denial established R2; the case is closed as fraud."
+        elif answer.case.status == CaseStatus.CLOSED_LEGITIMATE:
+            answer.stop_reason = "Customer confirmation established R3; the case is closed as legitimate."
+        elif answer.case.status == CaseStatus.ESCALATED:
+            answer.stop_reason = "Escalated to analyst per policy; the case remains open pending review."
+        else:
+            answer.stop_reason = (
+                f"Case remains open under rule(s) {sorted(allowed_rules) or ['none applicable']}; "
+                f"no closing condition (R2/R3) was established."
+            )
 
     # 8. The reviewer is not authoritative. A "critical" flag this
     # function's own checks did NOT independently confirm is logged for the
@@ -1542,11 +1645,26 @@ def investigate_case(case: dict) -> CaseAnswer:
     elapsed = round(time.time() - start_time, 1)
 
     independent_support_count = policy_facts["independent_support_count"]
-    if customer_response and customer_response.get("responded"):
-        if customer_response.get("confirmed_fraud"):
-            stop_reason = "Customer validation confirmed unauthorized activity; the case is closed as fraud under R2."
-        else:
-            stop_reason = "Customer validation confirmed the transaction was legitimate; the case is closed under R3."
+    rules_applied = set(policy.rules_applied)
+    responded = bool(customer_response and customer_response.get("responded"))
+    confirmed_fraud_response = bool(responded and customer_response.get("confirmed_fraud"))
+    denial_overridden = confirmed_fraud_response and "R2" not in rules_applied
+
+    if status == CaseStatus.CLOSED_FRAUD and "R2" in rules_applied:
+        stop_reason = "Customer denial established R2; the case is closed as fraud."
+    elif status == CaseStatus.CLOSED_LEGITIMATE and "R3" in rules_applied:
+        stop_reason = "Customer confirmation established R3; the case is closed as legitimate."
+    elif denial_overridden:
+        # The customer denied the transaction, but a different validated
+        # condition (e.g. R7's recurring-legitimate-dispute pattern) took
+        # precedence over that denial in the final policy decision — the
+        # case must NOT claim to be closed as fraud under R2 when R2 never
+        # actually applied.
+        overriding = ", ".join(sorted(rules_applied)) or "no additional rule"
+        stop_reason = (
+            f"Customer denial was recorded, but {overriding} took precedence in the final "
+            f"policy decision, so the case remains {status.value} rather than closing as fraud under R2."
+        )
     elif customer_response and customer_response.get("responded") is False:
         stop_reason = "Customer validation received no response within 24 hours; the case remains open and actions follow R4."
     elif (analysis["fraud_probability"] >= STOP_HIGH or analysis["fraud_probability"] <= STOP_LOW) and independent_support_count >= 2:
@@ -1577,6 +1695,10 @@ def investigate_case(case: dict) -> CaseAnswer:
             evidence=evidence_items,
             similar_prior_cases=[str(x) for x in bundle.get("prior_case_ids", [])],
             summary=final_summary,
+            probability_rationale=str(analysis.get("probability_rationale", "")).strip(),
+            decision_mechanics=build_decision_mechanics(
+                analysis, policy_facts, policy, evidence_requests
+            ),
             written_to_graph=written_to_graph,
             graph_case_id=case_id if written_to_graph else ""
         ),
@@ -1613,6 +1735,13 @@ def investigate_case(case: dict) -> CaseAnswer:
         print(f"  [REVIEW] Reviewer issues ({review['severity']}): {review['issues']}")
     if validator_corrections:
         print(f"  [REVIEW] Validator corrections: {validator_corrections}")
+    if not answer.case.probability_rationale:
+        answer.case.probability_rationale = (
+            f"No LLM-provided rationale was returned; deterministic fallback: "
+            f"{independent_support_count} independent indicator(s) support the "
+            f"{answer.case.verdict.value} verdict at fraud_probability="
+            f"{answer.case.fraud_probability:.2f}."
+        )
     answer.tokens = _tokens
     answer.qa = QASummary(
         reviewer_severity=review["severity"],

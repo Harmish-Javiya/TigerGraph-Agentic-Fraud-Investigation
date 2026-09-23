@@ -13,17 +13,18 @@ load_dotenv()
 
 PROVIDERS = [
     {
+        "name": "local",
+        "client": OpenAI(base_url=os.getenv("LOCAL_BASE_URL", "http://localhost:11434/v1"),
+                         api_key="ollama", timeout=120),
+        "model": os.getenv("LOCAL_MODEL", "qwen2.5-coder:7b"),
+        "no_think": False,
+        "system": "You are an expert fraud analyst at a bank. Be precise and data-driven. Return only valid JSON. Respond in English.",
+    },
+    {
         "name": "gemini",
         "client": OpenAI(base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                          api_key=os.getenv("GEMINI_API_KEY", "missing"), timeout=60),
         "model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
-        "no_think": False,
-    },
-    {
-        "name": "local",
-        "client": OpenAI(base_url=os.getenv("LOCAL_BASE_URL", "http://localhost:11434/v1"),
-                         api_key="ollama", timeout=240),
-        "model": os.getenv("LOCAL_MODEL", "qwen3:4b-instruct"),
         "no_think": False,
     },
     {
@@ -54,24 +55,33 @@ def extract_json(text: str) -> dict:
 
 
 def _classify(err: Exception) -> tuple[str, float]:
-    """Returns (kind, cooldown_seconds)."""
+    """Returns (kind, cooldown_seconds). Local Ollama is not penalized for
+    timeouts — those are usually MCP/server issues unrelated to the LLM."""
     msg = str(err).lower()
     if any(k in msg for k in ("per day", "daily", "tpd", "rpd")):
         return "quota_daily", 3600
     if any(k in msg for k in ("429", "rate_limit", "rate limit", "resource_exhausted", "quota")):
         return "quota_minute", 65
-    if any(k in msg for k in ("connection", "refused", "timed out", "timeout")):
-        return "down", 120
+    # Don't penalize local for connection/timeout — that's the MCP/server layer,
+    # not the model; retrying Ollama immediately is more useful than a cooldown.
+    if any(k in msg for k in ("connection", "refused")):
+        return "down", 15
+    if "timeout" in msg and p_name == "local":
+        return "other", 0
+    if "timeout" in msg:
+        return "down", 15
     return "other", 0
 
 
 def chat(prompt: str, system: str = "", json_mode: bool = False,
-         max_tokens: int = 2000) -> tuple[str, int]:
-    """Returns (text, tokens_used). Raises RuntimeError only if every provider fails."""
+         max_tokens: int = 2000, *, provider: str | None = None) -> tuple[str, int]:
+    """Returns (text, tokens_used). Raises RuntimeError only if every provider fails.
+    When ``provider`` is set, only that provider is tried (useful for forcing local)."""
     global TOKENS, LAST_PROVIDER
     errors = []
+    providers = PROVIDERS if provider is None else [p for p in PROVIDERS if p["name"] == provider]
 
-    for p in PROVIDERS:
+    for p in providers:
         if time.time() < _cooldown_until[p["name"]]:
             continue
         if p["name"] != "local" and p["client"].api_key == "missing":

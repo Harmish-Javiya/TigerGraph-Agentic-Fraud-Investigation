@@ -6,7 +6,7 @@ The LLM decides WHAT happened. This decides WHAT TO DO.
 No LLM calls here — pure Python logic, fully unit-testable.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 # §R1: verify before blocking on a weak/single signal below this probability
@@ -42,6 +42,7 @@ class PolicyInput:
     coordinated_abuse_confirmed: bool = False
     confirmed_compromised_cards: int = 0
     independent_support_count: int = 0
+    independent_support_signals: list[str] = field(default_factory=list)
     weak_evidence: bool = False
 
 
